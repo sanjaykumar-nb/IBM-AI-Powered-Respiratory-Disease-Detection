@@ -94,6 +94,21 @@ sudo systemctl restart caddy
 
 Twilio requires a public HTTPS URL for the WhatsApp webhook: `https://your.domain.com/api/whatsapp`.
 
+### Live listening needs HTTPS (or localhost)
+
+The **Listen live** tab records from the microphone / a digital stethoscope, and browsers only allow
+microphone access on `https://` pages or on `localhost`. Opened as `http://SERVER_IP/`, the app explains
+this and disables the microphone button; the simulated-stethoscope examples still work.
+
+Without a domain, the quickest way is an SSH tunnel, which makes the server's app appear on localhost:
+
+```bash
+ssh -L 8080:localhost:80 user@SERVER_IP   # PuTTY: Connection > SSH > Tunnels, source 8080, destination localhost:80
+```
+
+then open `http://localhost:8080` on your own computer. (Use the server's `HTTP_PORT` instead of 80 if
+you changed it.)
+
 ## Training the model on the server (Jupyter)
 
 `train_on_linuxone.ipynb` (repository root) trains the model on the server's own CPU, using the same

@@ -7,6 +7,7 @@ import Platform from './components/Platform.jsx';
 import Footer from './components/Footer.jsx';
 import { analyseRecording, fetchStatus } from './lib/api.js';
 import { inspectRecording } from './lib/audio.js';
+import { useLiveScreening } from './lib/useLiveScreening.js';
 import { MAX_UPLOAD_BYTES } from './lib/config.js';
 
 export default function App() {
@@ -15,6 +16,7 @@ export default function App() {
   const [recording, setRecording] = useState(null); // decoded preview, or { error }
   const [analysis, setAnalysis] = useState({ state: 'idle' });
   const runId = useRef(0);
+  const { live, start: startLive, stop: stopLive } = useLiveScreening();
 
   useEffect(() => {
     let cancelled = false;
@@ -56,6 +58,27 @@ export default function App() {
     }
   }, []);
 
+  const goLive = (source) => {
+    runId.current++;
+    setFile(null);
+    setRecording(null);
+    setAnalysis({ state: 'idle' });
+    startLive(source);
+  };
+
+  // Stopping keeps the last screened 5 s window as a normal report (printable like an upload)
+  const endLive = async () => {
+    const last = await stopLive();
+    if (!last) return;
+    const id = ++runId.current;
+    setFile(last.file);
+    setRecording(null);
+    setAnalysis({ state: 'done', result: last.result, finishedAt: last.at });
+    inspectRecording(last.file)
+      .then((r) => id === runId.current && setRecording(r))
+      .catch(() => id === runId.current && setRecording({ error: true, name: last.file.name, sizeBytes: last.file.size }));
+  };
+
   const reset = () => {
     runId.current++;
     setFile(null);
@@ -71,7 +94,7 @@ export default function App() {
           <p className="eyebrow">Screening</p>
           <h1>Listen to a lung recording, get a screening read‑out in seconds.</h1>
           <p className="lede">
-            Upload an auscultation recording. A graph neural network compares its acoustic signature against
+            Upload an auscultation recording, or listen live through a stethoscope. A graph neural network compares its acoustic signature against
             five classes — healthy, asthma, COPD, pneumonia and bronchial — and reports how strongly it matches each.
           </p>
         </section>
@@ -81,10 +104,13 @@ export default function App() {
             file={file}
             recording={recording}
             busy={analysis.state === 'analysing'}
+            live={live}
             onSelect={start}
             onReset={reset}
+            onLive={goLive}
+            onStopLive={endLive}
           />
-          <ResultPanel analysis={analysis} recording={recording} file={file} onRetry={() => file && start(file)} onReset={reset} />
+          <ResultPanel analysis={analysis} live={live} recording={recording} file={file} onRetry={() => file && start(file)} onReset={reset} />
         </div>
       </main>
       <Method arch={server.arch} />
