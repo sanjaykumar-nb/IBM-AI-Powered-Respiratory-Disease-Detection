@@ -114,6 +114,26 @@ connect), open the printed URL, and run all cells of `train_on_linuxone.ipynb`. 
 
 Stop JupyterLab with `bash deploy/jupyter.sh stop`.
 
+### Testing and visualising a model
+
+`evaluate_model.py` (repository root) runs sanity tests, evaluates a model and writes figures plus a
+report to `reports/<model>_<time>/`. It runs inference through the app's own `predict.py`. With JupyterLab
+running, open *File → New → Terminal* in JupyterLab (or use
+`docker compose --profile training exec jupyter bash` on the server) and run:
+
+```bash
+python evaluate_model.py                                   # the model the app serves
+python evaluate_model.py --model-dir saved_models/<run>    # a model from train_on_linuxone.ipynb
+python evaluate_model.py --limit 100                       # quicker, on a stratified sample
+python evaluate_model.py --files path/to/recording.wav     # classify and plot specific files
+```
+
+For models trained by the notebook it evaluates exactly the held-out test patients listed in their
+`metadata.json`; for other models it uses every recording and says so, since those scores include
+training data. Output: `report.md`, `summary.json`, `predictions.csv`, `confusion_matrix.png`,
+`per_class_metrics.png`, `confidence.png`, `latency.png` and `examples/` (waveform, spectrogram, the frame
+graph the GNN sees, and class probabilities for individual recordings).
+
 ## Updating the model
 
 Replace the three files in `backend/python_service/model/` (`model.pth`, `metadata.json`,

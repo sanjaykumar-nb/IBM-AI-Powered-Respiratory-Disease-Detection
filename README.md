@@ -9,6 +9,7 @@ Pneumonia** (95.47% test accuracy), plus a web app to run it.
 |------|------------|
 | [`respiratory-sound-classifier/`](respiratory-sound-classifier/) | Web app: React frontend, Express backend, Flask ML service — Dockerised. See its [README](respiratory-sound-classifier/README.md) and [DEPLOY.md](respiratory-sound-classifier/DEPLOY.md). |
 | [`train_on_linuxone.ipynb`](train_on_linuxone.ipynb) | Training notebook for LinuxONE: patient-level split, cached features, exports in the app's model format. Run it with `bash respiratory-sound-classifier/deploy/jupyter.sh`. |
+| [`evaluate_model.py`](evaluate_model.py) | Tests and visualises a model through the app's inference code: sanity tests, metrics, confusion matrix, confidence/latency charts, per-recording panels. |
 | [`model_trained.ipynb`](model_trained.ipynb) | Original training notebook (feature extraction → kNN graphs → GCN training → export). |
 | `Asthma Detection Dataset Version 2/` | Training audio: 1,211 WAV files in `asthma/`, `Bronchial/`, `copd/`, `healthy/`, `pneumonia/`. |
 | `saved_models/respiratory_model_20250904_002134/` | Model exported by `model_trained.ipynb`; the same files ship in `respiratory-sound-classifier/backend/python_service/model/`. |
