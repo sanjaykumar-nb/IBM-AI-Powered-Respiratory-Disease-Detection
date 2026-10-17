@@ -13,7 +13,7 @@ function ramp(t) {
   return a.map((v, i) => Math.round(v + (b[i] - v) * k));
 }
 
-export function useCanvasSize(ref) {
+function useCanvasSize(ref) {
   const [size, setSize] = useState({ w: 0, h: 0 });
   useEffect(() => {
     const el = ref.current;
@@ -25,7 +25,7 @@ export function useCanvasSize(ref) {
   return size;
 }
 
-export function prepare(canvas, { w, h }) {
+function prepare(canvas, { w, h }) {
   const dpr = window.devicePixelRatio || 1;
   canvas.width = Math.round(w * dpr);
   canvas.height = Math.round(h * dpr);

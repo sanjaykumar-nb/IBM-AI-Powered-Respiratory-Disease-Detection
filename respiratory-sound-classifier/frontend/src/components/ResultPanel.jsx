@@ -1,5 +1,4 @@
 import { CONDITIONS, confidenceBand } from '../lib/config.js';
-import LiveResult from './LiveResult.jsx';
 
 const STEPS = [
   'Resample to 16 kHz and take the centre 5 seconds',
@@ -8,7 +7,7 @@ const STEPS = [
   'Classify the graph with the neural network',
 ];
 
-export function pct(p, digits = 1) {
+function pct(p, digits = 1) {
   if (p > 0 && p < 0.001) return '<0.1%';
   return `${(p * 100).toFixed(digits)}%`;
 }
@@ -64,40 +63,6 @@ function Failed({ message, refused, onRetry, onReset, canRetry }) {
   );
 }
 
-export function ProbabilityTable({ probabilities, top }) {
-  const ranked = Object.entries(probabilities).sort((a, b) => b[1] - a[1]);
-  return (
-    <table className="probs">
-      <caption className="visually-hidden">Match strength for each class</caption>
-      <thead>
-        <tr>
-          <th scope="col">Class</th>
-          <th scope="col" className="probs__barcol">
-            <span className="visually-hidden">Bar</span>
-          </th>
-          <th scope="col" className="num">Match</th>
-        </tr>
-      </thead>
-      <tbody>
-        {ranked.map(([name, p]) => (
-          <tr key={name} className={name === top ? 'is-top' : undefined}>
-            <th scope="row">
-              <span className="swatch" style={{ background: CONDITIONS[name]?.color }} aria-hidden="true" />
-              {name}
-            </th>
-            <td className="probs__barcol">
-              <div className="bar">
-                <span style={{ width: `${Math.max(p * 100, 0.4)}%` }} />
-              </div>
-            </td>
-            <td className="num">{pct(p)}</td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
-
 function Report({ result, finishedAt, file, onReset }) {
   const ranked = Object.entries(result.all_probabilities).sort((a, b) => b[1] - a[1]);
   const top = result.predicted_class;
@@ -133,7 +98,34 @@ function Report({ result, finishedAt, file, onReset }) {
         )}
       </div>
 
-      <ProbabilityTable probabilities={result.all_probabilities} top={top} />
+      <table className="probs">
+        <caption className="visually-hidden">Match strength for each class</caption>
+        <thead>
+          <tr>
+            <th scope="col">Class</th>
+            <th scope="col" className="probs__barcol">
+              <span className="visually-hidden">Bar</span>
+            </th>
+            <th scope="col" className="num">Match</th>
+          </tr>
+        </thead>
+        <tbody>
+          {ranked.map(([name, p]) => (
+            <tr key={name} className={name === top ? 'is-top' : undefined}>
+              <th scope="row">
+                <span className="swatch" style={{ background: CONDITIONS[name]?.color }} aria-hidden="true" />
+                {name}
+              </th>
+              <td className="probs__barcol">
+                <div className="bar">
+                  <span style={{ width: `${Math.max(p * 100, 0.4)}%` }} />
+                </div>
+              </td>
+              <td className="num">{pct(p)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
 
       <dl className="details">
         <div>
@@ -177,18 +169,16 @@ function Report({ result, finishedAt, file, onReset }) {
   );
 }
 
-export default function ResultPanel({ analysis, live, file, onRetry, onReset }) {
-  const listening = live && (live.state === 'on' || live.state === 'starting');
+export default function ResultPanel({ analysis, file, onRetry, onReset }) {
   return (
     <section className="panel panel--result" aria-labelledby="result-title" aria-live="polite">
       <header className="panel__head">
         <span className="panel__step">02</span>
         <h2 id="result-title">Result</h2>
       </header>
-      {listening && <LiveResult live={live} />}
-      {!listening && analysis.state === 'idle' && <Idle />}
-      {!listening && analysis.state === 'analysing' && <Analysing />}
-      {!listening && analysis.state === 'error' && (
+      {analysis.state === 'idle' && <Idle />}
+      {analysis.state === 'analysing' && <Analysing />}
+      {analysis.state === 'error' && (
         <Failed
           message={analysis.message}
           refused={analysis.refused}
@@ -197,7 +187,7 @@ export default function ResultPanel({ analysis, live, file, onRetry, onReset }) 
           canRetry={Boolean(file) && !analysis.refused}
         />
       )}
-      {!listening && analysis.state === 'done' && (
+      {analysis.state === 'done' && (
         <Report result={analysis.result} finishedAt={analysis.finishedAt} file={file} onReset={onReset} />
       )}
     </section>
