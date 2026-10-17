@@ -4,7 +4,6 @@ const multer = require('multer');
 const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
-const watsonx = require('./explain');
 const db = require('./db');
 
 const app = express();
@@ -54,19 +53,10 @@ app.get('/api/health', (req, res) => {
 app.get('/api/status', async (req, res) => {
     try {
         const { data } = await axios.get(`${PYTHON_API_URL}/health`, { timeout: 3000 });
-        res.json({ backend: 'ok', model: data, watsonx: { enabled: watsonx.enabled, model: watsonx.model } });
+        res.json({ backend: 'ok', model: data });
     } catch (error) {
         res.status(503).json({ backend: 'ok', model: null, error: 'ML service unavailable' });
     }
-});
-
-// Plain-language explanation of a result by IBM Granite on watsonx.ai (optional, see explain.js).
-// Takes the prediction the browser already has, so the report appears first and the explanation follows.
-app.post('/api/explain', async (req, res) => {
-    if (!watsonx.enabled) return res.status(503).json({ error: 'watsonx.ai is not configured' });
-    const explanation = await watsonx.explain(req.body?.prediction, req.body?.language);
-    if (!explanation) return res.status(502).json({ error: 'No explanation available right now' });
-    res.json(explanation);
 });
 
 // Screening history from IBM Db2 (results only, never audio)
@@ -210,11 +200,9 @@ app.post('/api/whatsapp', express.urlencoded({ extended: false }), async (req, r
                 const prediction = result.predicted_class;
                 const confidence = (result.confidence * 100).toFixed(1);
                 
-                const explanation = await watsonx.explain(result, process.env.WHATSAPP_LANGUAGE || 'en');
                 const message = `🔬 *Analysis Result*\n\n` +
                               `Condition: *${prediction}*\n` +
                               `Confidence: *${confidence}%*\n\n` +
-                              (explanation ? `${explanation.text}\n_(explained by IBM Granite on watsonx.ai)_\n\n` : '') +
                               `_Disclaimer: This is for research purposes only._`;
                               
                 twiml.message(message);
@@ -253,7 +241,4 @@ app.listen(PORT, () => {
     console.log(`🔗 Python ML service expected at: ${PYTHON_API_URL}`);
     console.log(`🗄️  Screening history: ${db.enabled() ? `IBM Db2 at ${process.env.DB2_HOST || 'db2'}` : 'disabled'}`);
     console.log(`💬 WhatsApp Webhook ready at: http://localhost:${PORT}/api/whatsapp`);
-    console.log(watsonx.enabled
-        ? `🧠 watsonx.ai explanations on (${watsonx.model})`
-        : '🧠 watsonx.ai explanations off (set WATSONX_API_KEY and WATSONX_PROJECT_ID to enable)');
 });

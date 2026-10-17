@@ -141,44 +141,6 @@ sudo systemctl restart caddy
 
 Twilio requires a public HTTPS URL for the WhatsApp webhook: `https://your.domain.com/api/whatsapp`.
 
-## Plain-language explanations with IBM Granite on watsonx.ai (optional)
-
-With a watsonx.ai key, each report gets a 2–3 sentence explanation written by IBM Granite, in
-English, Tamil or Hindi, and WhatsApp replies include it too. Only the predicted class and the five
-probabilities are sent to IBM Cloud — never the recording or anything about the person. Without a key,
-or if watsonx.ai is slow (6 s timeout) or out of quota, the app works exactly as before and the
-explanation is simply left out.
-
-1. In IBM Cloud, open **watsonx.ai** and create a project (this also creates or links a
-   watsonx.ai Runtime service — the free **Lite** plan is enough for a demo; check IBM's watsonx.ai
-   pricing page for its current monthly token allowance. One explanation uses a few hundred tokens).
-2. Copy the **project ID** (project > Manage > General) and create an **API key**
-   (IBM Cloud > Manage > Access (IAM) > API keys).
-3. Note the region of your watsonx.ai service, e.g. Dallas = `https://us-south.ml.cloud.ibm.com`,
-   Frankfurt = `https://eu-de.ml.cloud.ibm.com`, London = `https://eu-gb.ml.cloud.ibm.com`,
-   Tokyo = `https://jp-tok.ml.cloud.ibm.com`.
-4. On the server, put them in `.env` (never commit this file) and redeploy:
-
-   ```bash
-   WATSONX_API_KEY=...
-   WATSONX_PROJECT_ID=...
-   WATSONX_URL=https://us-south.ml.cloud.ibm.com
-   ```
-
-   ```bash
-   bash deploy/deploy.sh
-   docker compose logs backend | grep watsonx   # "watsonx.ai explanations on (ibm/granite-...)"
-   ```
-
-The server must be able to reach IBM Cloud over HTTPS. Check from the LinuxONE server:
-
-```bash
-curl -sS -o /dev/null -w '%{http_code}\n' https://iam.cloud.ibm.com/identity/token   # any HTTP code = reachable
-```
-
-If a model is withdrawn from your region, the backend log shows the error; pick a current Granite
-instruct model from watsonx.ai's model list and set `WATSONX_MODEL_ID` in `.env`.
-
 ## Training the model on the server (Jupyter)
 
 `train_on_linuxone.ipynb` (repository root) trains the model on the server's own CPU, using the same

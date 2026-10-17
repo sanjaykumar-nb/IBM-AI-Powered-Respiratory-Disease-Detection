@@ -28,12 +28,6 @@ services:
       DB2_DATABASE: ${DB2_DBNAME:-SCREEN}
       DB2_USER: db2inst1
       DB2_PASSWORD: ${DB2_PASSWORD:-}
-      # Optional: plain-language explanations by IBM Granite on watsonx.ai (set these in .env)
-      WATSONX_API_KEY: ${WATSONX_API_KEY:-}
-      WATSONX_PROJECT_ID: ${WATSONX_PROJECT_ID:-}
-      WATSONX_URL: ${WATSONX_URL:-https://us-south.ml.cloud.ibm.com}
-      WATSONX_MODEL_ID: ${WATSONX_MODEL_ID:-ibm/granite-3-3-8b-instruct}
-      WHATSAPP_LANGUAGE: ${WHATSAPP_LANGUAGE:-en}
     expose:
       - "5000"
     # No dependency on db2: screening works while Db2 is starting or down (results are then not recorded).

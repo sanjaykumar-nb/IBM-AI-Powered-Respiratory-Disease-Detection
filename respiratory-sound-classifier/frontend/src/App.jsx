@@ -22,7 +22,7 @@ export default function App() {
     let cancelled = false;
     const poll = () =>
       fetchStatus()
-        .then((s) => !cancelled && setServer({ state: s.model?.model_loaded ? 'online' : 'offline', arch: s.model?.arch, ibmZ: s.model?.ibm_z, watsonx: s.watsonx }))
+        .then((s) => !cancelled && setServer({ state: s.model?.model_loaded ? 'online' : 'offline', arch: s.model?.arch, ibmZ: s.model?.ibm_z }))
         .catch(() => !cancelled && setServer({ state: 'offline' }));
     poll();
     const id = setInterval(poll, 30000);
@@ -87,7 +87,7 @@ export default function App() {
             onSelect={start}
             onReset={reset}
           />
-          <ResultPanel analysis={analysis} recording={recording} file={file} explain={Boolean(server.watsonx?.enabled)} onRetry={() => file && start(file)} onReset={reset} />
+          <ResultPanel analysis={analysis} recording={recording} file={file} onRetry={() => file && start(file)} onReset={reset} />
         </div>
       </main>
       <Method arch={server.arch} />
