@@ -1,0 +1,9 @@
+# IBM Z / LinuxONE (s390x) only - see Dockerfile.s390x.
+# Installed with --no-deps: every dependency comes from Debian's s390x packages instead,
+# because PyPI has no s390x wheels for numpy/scipy/scikit-learn/soxr and numba does not support s390x.
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch==2.8.0+cpu
+torch-geometric==2.6.1
+librosa==0.11.0
+# Debian's python3-audioread drags in ffmpeg + ~250 GUI/media libraries; the wheel is pure Python
+audioread==3.0.1

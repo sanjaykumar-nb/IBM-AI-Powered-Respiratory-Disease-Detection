@@ -7,6 +7,13 @@ cd "$(dirname "$0")/.."
 
 [[ -f .env ]] || cp .env.example .env
 
+# IBM Z / LinuxONE: build the ML service from Dockerfile.s390x. Stored in .env so manual
+# `docker compose ...` commands on this server use the same files.
+if [[ "$(uname -m)" == "s390x" ]] && ! grep -q '^COMPOSE_FILE=' .env; then
+    echo "==> s390x (IBM Z / LinuxONE) detected - enabling docker-compose.s390x.yml"
+    printf '\nCOMPOSE_FILE=docker-compose.yml:docker-compose.s390x.yml\n' >> .env
+fi
+
 if [[ -d .git ]]; then
     echo "==> Pulling latest code"
     git pull --ff-only || echo "    (git pull skipped/failed - deploying the local copy)"

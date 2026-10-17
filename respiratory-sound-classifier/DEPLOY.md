@@ -13,9 +13,27 @@ hard-coded host to configure.
 
 ## Server requirements
 
-- x86_64 Linux (Ubuntu 22.04/24.04, Debian 12, RHEL/Rocky/Alma 8/9 tested by the setup script)
+- Linux on **x86_64** or **IBM Z / LinuxONE (s390x)** — Ubuntu 22.04/24.04, Debian 12, RHEL/Rocky/Alma 8/9
 - 2 vCPU, **4 GB RAM** minimum (the ML container is capped at 3 GB), ~6 GB free disk
 - Inbound TCP 80 open (and 443 if you add HTTPS)
+
+### IBM Z / LinuxONE (s390x)
+
+`deploy/deploy.sh` detects s390x (`uname -m`) and automatically builds the ML service from
+`backend/python_service/Dockerfile.s390x` (via `docker-compose.s390x.yml`, recorded as `COMPOSE_FILE`
+in `.env`). That image differs from the x86_64 one because the Python ML stack is not published for s390x
+on PyPI:
+
+- numpy, scipy, scikit-learn, soxr, etc. come from Debian 13's s390x packages
+- PyTorch is the official `2.8.0+cpu` s390x wheel from download.pytorch.org
+- numba (required by librosa) does not support s390x, so `numba_shim/` — a small pure-NumPy stand-in —
+  is installed instead. It was verified to produce bit-identical audio features to real numba for this
+  model, at the same speed.
+
+Tested under QEMU s390x emulation: 15/15 sample recordings got the same diagnosis as the x86_64 image.
+Confidence scores match to ~1e-5 on clear-cut recordings and can differ by a few percent on borderline
+ones. That comes from the top spectral-contrast bands (above 2 kHz, where the 4 kHz source recordings
+have no real signal), which vary between any two machines/library builds — not from s390x itself.
 
 ## 1. Get the code onto the server
 
