@@ -12,6 +12,8 @@ from flask_cors import CORS
 import pickle
 import json
 import tempfile
+import time
+import platform
 from pathlib import Path
 import warnings
 warnings.filterwarnings('ignore')
@@ -184,82 +186,106 @@ def health_check():
     return jsonify({
         'status': 'ok',
         'model_loaded': model is not None,
-        'device': str(device)
+        'device': str(device),
+        'arch': platform.machine()
     })
+
+def classify_file(path):
+    """Run the full inference pipeline on an audio file and return the result dict."""
+    started = time.perf_counter()
+    target_sr = 16000
+    duration = 5.0
+    target_samples = int(duration * target_sr)
+
+    audio, sr = librosa.load(path, sr=target_sr)
+    recording_seconds = len(audio) / sr
+
+    if len(audio) > target_samples:
+        start = (len(audio) - target_samples) // 2
+        audio = audio[start:start + target_samples]
+    elif len(audio) < target_samples:
+        padding = target_samples - len(audio)
+        audio = np.pad(audio, (0, padding), mode='constant')
+
+    if np.max(np.abs(audio)) > 0:
+        audio = audio / np.max(np.abs(audio))
+
+    # Extract features
+    features = extract_features(audio, sr)
+    if features is None:
+        raise ValueError('Feature extraction failed')
+
+    # Convert to graph
+    graph = graph_converter.features_to_graph(features)
+    graph = graph.to(device)
+
+    # Predict
+    with torch.no_grad():
+        batch = torch.zeros(graph.x.shape[0], dtype=torch.long, device=device)
+        output = model(graph.x, graph.edge_index, batch)
+        probabilities = torch.exp(output[0])
+        predicted_idx = output.argmax(dim=1).item()
+        confidence = probabilities.max().item()
+        predicted_class = label_encoder.inverse_transform([predicted_idx])[0]
+
+    return {
+        'predicted_class': str(predicted_class),
+        'confidence': float(confidence),
+        'all_probabilities': {
+            str(cls): float(probabilities[i])
+            for i, cls in enumerate(label_encoder.classes_)
+        },
+        'recording_seconds': round(recording_seconds, 2),
+        'inference_ms': round((time.perf_counter() - started) * 1000, 1),
+        'arch': platform.machine(),
+    }
+
+def warm_up():
+    """Run one prediction on synthetic audio so the first real request is fast.
+
+    The first call through librosa compiles its numba kernels (~15 s on x86_64) and initialises
+    lazy imports; doing it at startup moves that cost out of the user's request.
+    """
+    import soundfile as sf
+    started = time.perf_counter()
+    rng = np.random.default_rng(0)
+    sr = 4000  # same rate as the training recordings, so resampling is exercised too
+    t = np.arange(int(sr * 5.0)) / sr
+    audio = (0.3 * np.sin(2 * np.pi * 220 * t) + 0.05 * rng.standard_normal(t.size)).astype(np.float32)
+    fd, path = tempfile.mkstemp(suffix='.wav')
+    os.close(fd)
+    try:
+        sf.write(path, audio, sr)
+        classify_file(path)
+    finally:
+        os.remove(path)
+    print(f"🔥 Warm-up finished in {time.perf_counter() - started:.1f}s")
 
 @app.route('/predict', methods=['POST'])
 def predict():
     try:
         if model is None:
             return jsonify({'error': 'Model not loaded'}), 500
-        
+
         if 'file' not in request.files:
             return jsonify({'error': 'No file provided'}), 400
-        
+
         file = request.files['file']
         if file.filename == '':
             return jsonify({'error': 'Empty filename'}), 400
-        
+
         # Save to a unique temp file (never trust the client-supplied filename as a path)
         suffix = Path(file.filename).suffix.lower() or '.wav'
         fd, temp_path = tempfile.mkstemp(suffix=suffix)
         os.close(fd)
         file.save(temp_path)
-        
+
         try:
-            # Load and process audio
-            target_sr = 16000
-            duration = 5.0
-            target_samples = int(duration * target_sr)
-            
-            audio, sr = librosa.load(temp_path, sr=target_sr)
-            
-            if len(audio) > target_samples:
-                start = (len(audio) - target_samples) // 2
-                audio = audio[start:start + target_samples]
-            elif len(audio) < target_samples:
-                padding = target_samples - len(audio)
-                audio = np.pad(audio, (0, padding), mode='constant')
-                
-            if np.max(np.abs(audio)) > 0:
-                audio = audio / np.max(np.abs(audio))
-            
-            # Extract features
-            features = extract_features(audio, sr)
-            if features is None:
-                return jsonify({'error': 'Feature extraction failed'}), 500
-            
-            # Convert to graph
-            graph = graph_converter.features_to_graph(features)
-            graph = graph.to(device)
-            
-            # Predict
-            with torch.no_grad():
-                batch = torch.zeros(graph.x.shape[0], dtype=torch.long, device=device)
-                output = model(graph.x, graph.edge_index, batch)
-                probabilities = torch.exp(output[0])
-                predicted_idx = output.argmax(dim=1).item()
-                confidence = probabilities.max().item()
-                predicted_class = label_encoder.inverse_transform([predicted_idx])[0]
-            
-            # Prepare response
-            all_probabilities = {
-                str(cls): float(probabilities[i])
-                for i, cls in enumerate(label_encoder.classes_)
-            }
-            
-            result = {
-                'predicted_class': str(predicted_class),
-                'confidence': float(confidence),
-                'all_probabilities': all_probabilities
-            }
-            
-            return jsonify(result)
-            
+            return jsonify(classify_file(temp_path))
         finally:
             if os.path.exists(temp_path):
                 os.remove(temp_path)
-    
+
     except Exception as e:
         print(f"Prediction error: {str(e)}")
         import traceback
@@ -270,6 +296,7 @@ def create_app():
     """Entry point for production WSGI servers (e.g. `gunicorn 'predict:create_app()'`)."""
     if not load_model():
         raise RuntimeError("Model could not be loaded - check MODEL_DIR")
+    warm_up()
     return app
 
 if __name__ == '__main__':
@@ -278,6 +305,7 @@ if __name__ == '__main__':
     print("="*60)
 
     if load_model():
+        warm_up()
         app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5001)), debug=False)
     else:
         print("❌ Failed to start service - model not loaded")

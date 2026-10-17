@@ -28,7 +28,7 @@ USER appuser
 
 EXPOSE 5001
 
-HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=3 \
     CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:5001/health').status == 200 else 1)"
 
 # One worker keeps a single copy of the model in memory; threads handle concurrent requests.

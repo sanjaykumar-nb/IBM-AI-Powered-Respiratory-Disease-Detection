@@ -48,6 +48,16 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', message: 'Backend server is running' });
 });
 
+// Model status for the UI (ML service health, CPU architecture)
+app.get('/api/status', async (req, res) => {
+    try {
+        const { data } = await axios.get(`${PYTHON_API_URL}/health`, { timeout: 3000 });
+        res.json({ backend: 'ok', model: data });
+    } catch (error) {
+        res.status(503).json({ backend: 'ok', model: null, error: 'ML service unavailable' });
+    }
+});
+
 // Upload and predict endpoint
 app.post('/api/upload', upload.single('audio'), async (req, res) => {
     try {

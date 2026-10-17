@@ -63,16 +63,15 @@ respiratory-sound-classifier/
 │       ├── Dockerfile                     # ML image
 │       └── 📂 model/                      # Trained model (model.pth, metadata.json, label_encoder.pkl)
 │
-├── 📂 frontend/
-│   ├── 📂 public/
-│   │   └── index.html
+├── 📂 frontend/                           # React + Vite, served by nginx
+│   ├── index.html
+│   ├── 📂 public/samples/                 # Example recordings (one per class)
 │   ├── 📂 src/
-│   │   ├── App.js                         # Main component
-│   │   ├── App.css
-│   │   ├── index.js
-│   │   └── 📂 components/
-│   │       ├── FileUpload.js
-│   │       └── ResultsDisplay.js
+│   │   ├── App.jsx                        # Screening workflow
+│   │   ├── styles.css                     # Design tokens + layout
+│   │   ├── 📂 components/                 # Header, RecordingPanel, RecordingView, ResultPanel, Method, Footer
+│   │   └── 📂 lib/                        # API client, audio decoding/spectrogram, config
+│   ├── nginx.conf
 │   └── package.json
 │
 ├── 📂 saved_models/                        # Model checkpoints
@@ -154,7 +153,7 @@ npm start
 ### Terminal 3: React Frontend
 ```bash
 cd frontend
-npm start
+npm run dev
 ```
 🟢 Application opens at: `http://localhost:3000`
 

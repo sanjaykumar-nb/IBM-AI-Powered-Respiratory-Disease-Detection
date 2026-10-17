@@ -106,5 +106,5 @@ If the new model was trained with different NumPy / scikit-learn versions, updat
 ```bash
 cd backend/python_service && pip install -r ../requirements.txt && python predict.py   # :5001
 cd backend && npm install && npm start                                                 # :5000
-cd frontend && npm install && npm start    # :3000, proxies /api to :5000
+cd frontend && npm install && npm run dev  # :3000, proxies /api to :5000
 ```
