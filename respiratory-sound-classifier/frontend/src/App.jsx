@@ -3,6 +3,7 @@ import Header from './components/Header.jsx';
 import RecordingPanel from './components/RecordingPanel.jsx';
 import ResultPanel from './components/ResultPanel.jsx';
 import Method from './components/Method.jsx';
+import Platform from './components/Platform.jsx';
 import Footer from './components/Footer.jsx';
 import { analyseRecording, fetchStatus } from './lib/api.js';
 import { inspectRecording } from './lib/audio.js';
@@ -19,7 +20,7 @@ export default function App() {
     let cancelled = false;
     const poll = () =>
       fetchStatus()
-        .then((s) => !cancelled && setServer({ state: s.model?.model_loaded ? 'online' : 'offline', arch: s.model?.arch }))
+        .then((s) => !cancelled && setServer({ state: s.model?.model_loaded ? 'online' : 'offline', arch: s.model?.arch, ibmZ: s.model?.ibm_z }))
         .catch(() => !cancelled && setServer({ state: 'offline' }));
     poll();
     const id = setInterval(poll, 30000);
@@ -87,6 +88,7 @@ export default function App() {
         </div>
       </main>
       <Method arch={server.arch} />
+      <Platform server={server} />
       <Footer server={server} />
     </>
   );

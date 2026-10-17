@@ -831,6 +831,73 @@ button {
   color: var(--ink-2);
 }
 
+/* ------------------------------------------------------------------ platform (IBM Z) */
+.platform {
+  padding: 56px 0 64px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.platform__facts {
+  margin: 0 0 28px;
+  background: var(--surface);
+  border: 1px solid var(--rule);
+}
+
+.tech {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 2px solid var(--ink);
+}
+
+.tech__item {
+  padding: 18px 20px 0 0;
+}
+
+.tech__item + .tech__item {
+  padding-left: 20px;
+  border-left: 1px solid var(--rule);
+}
+
+.tech__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 10px;
+}
+
+.tech__head h3 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.tech__head .badge {
+  margin-top: 0;
+}
+
+.tech__item p {
+  margin-top: 10px;
+  font-size: 13.5px;
+  color: var(--ink-2);
+}
+
+.tech__item--absent h3,
+.tech__item--absent p {
+  color: var(--ink-3);
+}
+
+.badge--neutral { background: var(--accent-tint); color: var(--accent); }
+.badge--muted { background: var(--sunken); color: var(--ink-3); }
+
+.platform__note {
+  margin-top: 24px;
+  font-size: 12.5px;
+  color: var(--ink-3);
+}
+
 /* ------------------------------------------------------------------ footer */
 .site-footer {
   padding: 28px 0 40px;
@@ -869,6 +936,16 @@ button {
   .facts {
     grid-template-columns: 1fr;
     gap: 20px;
+  }
+
+  .tech {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    row-gap: 28px;
+  }
+
+  .tech__item:nth-child(3) {
+    padding-left: 0;
+    border-left: 0;
   }
 }
 
@@ -915,6 +992,15 @@ button {
     border-left: 0;
   }
 
+  .tech {
+    grid-template-columns: 1fr;
+  }
+
+  .tech__item + .tech__item {
+    padding-left: 0;
+    border-left: 0;
+  }
+
   .site-footer__inner {
     flex-direction: column;
   }
@@ -941,6 +1027,7 @@ button {
   .site-header,
   .intro,
   .method,
+  .platform,
   .site-footer,
   .no-print,
   .player,

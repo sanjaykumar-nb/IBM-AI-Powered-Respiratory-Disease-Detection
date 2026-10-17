@@ -181,13 +181,78 @@ def extract_features(audio, sr):
         print(f"Error extracting features: {e}")
         return None
 
+# --- IBM Z hardware report (shown in the web app) ---
+# Machine types are shared by an IBM Z model and the LinuxONE model of the same generation.
+IBM_Z_MACHINES = {
+    '2964': 'IBM z13 / LinuxONE Emperor', '2965': 'IBM z13s / LinuxONE Rockhopper',
+    '3906': 'IBM z14 / LinuxONE Emperor II', '3907': 'IBM z14 ZR1 / LinuxONE Rockhopper II',
+    '8561': 'IBM z15 T01 / LinuxONE III LT1', '8562': 'IBM z15 T02 / LinuxONE III LT2',
+    '3931': 'IBM z16 A01 / LinuxONE Emperor 4', '3932': 'IBM z16 A02 / LinuxONE Rockhopper 4',
+    '9175': 'IBM z17 ME1 / LinuxONE Emperor 5',
+}
+# /proc/cpuinfo flags for the on-chip facilities the web app reports
+IBM_Z_FEATURES = ('vx', 'vxe', 'vxe2', 'nnpa', 'msa', 'dflt', 'sort')
+
+
+def _read(path):
+    try:
+        return Path(path).read_text(errors='replace')
+    except OSError:
+        return ''
+
+
+def ibm_z_info():
+    """What the IBM Z / LinuxONE machine provides, read from /proc. None on other architectures.
+
+    /proc/cpuinfo and /proc/sysinfo describe the host, so this works inside the container too.
+    """
+    if platform.machine() != 's390x':
+        return None
+    cpuinfo, sysinfo = _read('/proc/cpuinfo'), _read('/proc/sysinfo')
+    features, machine_type, mhz = [], None, None
+    for line in cpuinfo.splitlines():
+        key, _, value = line.partition(':')
+        if key.strip() == 'features':
+            features = [f for f in value.split() if f in IBM_Z_FEATURES]
+        elif key.startswith('processor') and 'machine =' in value and machine_type is None:
+            machine_type = value.split('machine =')[1].strip()
+        elif key.strip() == 'cpu MHz static':
+            mhz = int(value.strip() or 0) or None
+    hypervisor = 'LPAR'
+    for line in sysinfo.splitlines():
+        key, _, value = line.partition(':')
+        if key.strip() == 'Type' and not machine_type:
+            machine_type = value.strip()
+        elif key.strip().endswith('Control Program'):  # innermost hypervisor, e.g. "z/VM 7.3.0", "KVM/Linux"
+            hypervisor = ' '.join(value.split())
+    if not sysinfo:
+        hypervisor = None  # unknown (e.g. under emulation)
+    try:  # numpy's SIMD kernels in use: VX / VXE / VXE2 = IBM Z vector facility generations
+        from numpy._core._multiarray_umath import __cpu_features__
+    except ImportError:
+        from numpy.core._multiarray_umath import __cpu_features__
+    return {
+        'machine_type': machine_type,
+        'machine_name': IBM_Z_MACHINES.get(machine_type or ''),
+        'hypervisor': hypervisor,
+        'cpu_mhz': mhz,
+        'cpus': os.cpu_count(),
+        'features': features,
+        'numpy_simd': [k for k in ('VX', 'VXE', 'VXE2', 'VXE3') if __cpu_features__.get(k)],
+    }
+
+
+IBM_Z = ibm_z_info()
+
+
 @app.route('/health', methods=['GET'])
 def health_check():
     return jsonify({
         'status': 'ok',
         'model_loaded': model is not None,
         'device': str(device),
-        'arch': platform.machine()
+        'arch': platform.machine(),
+        'ibm_z': IBM_Z,
     })
 
 # --- Input quality gate ---

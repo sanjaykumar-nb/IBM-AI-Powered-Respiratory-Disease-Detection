@@ -21,6 +21,7 @@ export default function Header({ server }) {
         <nav className="site-nav" aria-label="Sections">
           <a href="#screening">Screening</a>
           <a href="#method">Method</a>
+          <a href="#platform">IBM Z</a>
         </nav>
         <div className={`status status--${server.state}`} role="status">
           <span className="status__dot" aria-hidden="true" />
