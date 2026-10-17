@@ -94,6 +94,26 @@ sudo systemctl restart caddy
 
 Twilio requires a public HTTPS URL for the WhatsApp webhook: `https://your.domain.com/api/whatsapp`.
 
+## Training the model on the server (Jupyter)
+
+`train_on_linuxone.ipynb` (repository root) trains the model on the server's own CPU, using the same
+container environment as the inference service. JupyterLab is optional and only starts when asked:
+
+```bash
+bash deploy/jupyter.sh          # builds and starts JupyterLab, prints the URL with its token
+```
+
+JupyterLab listens on `127.0.0.1:8888` on the server only. From your PC, open an SSH tunnel
+(PuTTY: *Connection → SSH → Tunnels*, source port `8888`, destination `localhost:8888`, *Add*, then
+connect), open the printed URL, and run all cells of `train_on_linuxone.ipynb`. The notebook:
+
+- splits train / validation / test **by patient**, so the reported test metrics are for unseen patients
+- caches the extracted features in `cache/`, so re-runs skip extraction
+- saves the model to `saved_models/respiratory_model_<arch>_<timestamp>/` and checks it with the app's
+  own `predict.py`; set `DEPLOY = True` in the last cell to copy it into the app, then run `deploy/deploy.sh`
+
+Stop JupyterLab with `bash deploy/jupyter.sh stop`.
+
 ## Updating the model
 
 Replace the three files in `backend/python_service/model/` (`model.pth`, `metadata.json`,

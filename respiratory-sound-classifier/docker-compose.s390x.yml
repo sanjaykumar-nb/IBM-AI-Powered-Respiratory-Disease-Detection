@@ -1,7 +1,12 @@
-# Override for IBM Z / LinuxONE (s390x) hosts: builds the ML service from Dockerfile.s390x.
+# Override for IBM Z / LinuxONE (s390x) hosts: builds the ML service (and the optional training
+# notebook) from Dockerfile.s390x.
 # deploy/deploy.sh enables it automatically on s390x by setting COMPOSE_FILE in .env, so plain
 # `docker compose ...` commands on that server pick it up too.
 services:
   ml:
+    build:
+      dockerfile: python_service/Dockerfile.s390x
+
+  jupyter:
     build:
       dockerfile: python_service/Dockerfile.s390x

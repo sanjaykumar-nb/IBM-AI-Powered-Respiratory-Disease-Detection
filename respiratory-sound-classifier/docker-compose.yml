@@ -5,6 +5,7 @@ services:
     build:
       context: ./backend
       dockerfile: python_service/Dockerfile
+      target: runtime
     image: respiratory-classifier/ml:latest
     restart: unless-stopped
     expose:
@@ -38,3 +39,23 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+
+  # Training notebook (train_on_linuxone.ipynb). Not started by deploy.sh - use deploy/jupyter.sh.
+  # Same ML environment as the inference service; the whole repository is mounted at /workspace.
+  # Bound to 127.0.0.1 only: reach it through an SSH tunnel, never directly from the internet.
+  jupyter:
+    profiles: ["training"]
+    build:
+      context: ./backend
+      dockerfile: python_service/Dockerfile
+      target: jupyter
+    image: respiratory-classifier/jupyter:latest
+    user: "${HOST_UID:-1000}:${HOST_GID:-1000}"
+    volumes:
+      - ..:/workspace
+    ports:
+      - "127.0.0.1:${JUPYTER_PORT:-8888}:8888"
+    deploy:
+      resources:
+        limits:
+          memory: 5g

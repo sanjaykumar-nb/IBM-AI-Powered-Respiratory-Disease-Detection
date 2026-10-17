@@ -7,7 +7,7 @@
 #  - torch comes from PyTorch's official s390x CPU wheel (2.8.0 is the oldest one published)
 #  - numba does not support s390x, so a pure-NumPy stand-in (numba_shim/) is installed for librosa.
 #    It produces bit-identical features to real numba for this model's feature set.
-FROM debian:trixie-slim
+FROM debian:trixie-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -56,3 +56,22 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=3 \
 
 # `python -m gunicorn` so it runs inside the venv (Debian's /usr/bin/gunicorn would not see torch)
 CMD ["python", "-m", "gunicorn", "--bind", "0.0.0.0:5001", "--workers", "1", "--threads", "4", "--timeout", "180", "predict:create_app()"]
+
+# ---------------------------------------------------------------- training notebook (optional)
+# JupyterLab on top of the exact runtime above, for train_on_linuxone.ipynb.
+# Started on demand with deploy/jupyter.sh (compose profile "training"); not part of the web app.
+# Debian's packages again (no s390x wheels on PyPI); `python -m jupyterlab` runs it from the venv,
+# so notebook kernels see the venv's torch / torch-geometric / librosa.
+FROM runtime AS jupyter
+USER root
+RUN apt-get update     && apt-get install -y --no-install-recommends jupyterlab python3-ipykernel python3-matplotlib     && rm -rf /var/lib/apt/lists/*
+# nbconvert: notebook export (File > Save and Export) and headless runs
+RUN apt-get update     && apt-get install -y --no-install-recommends python3-nbconvert     && rm -rf /var/lib/apt/lists/*
+# Debian registers a kernel for /usr/bin/python3, which cannot see the venv's torch/librosa.
+# Register the venv's Python instead; Jupyter prefers kernels under the running Python's prefix.
+RUN python -m ipykernel install --prefix /opt/venv --name python3 --display-name "Python 3 (ipykernel)"
+ENV HOME=/tmp
+WORKDIR /workspace
+EXPOSE 8888
+HEALTHCHECK NONE
+CMD ["python", "-m", "jupyterlab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--ServerApp.root_dir=/workspace"]

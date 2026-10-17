@@ -18,3 +18,6 @@ uploads/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Feature cache written by train_on_linuxone.ipynb
+cache/

@@ -1,6 +1,6 @@
 # Python ML inference service (Flask + PyTorch Geometric), served by gunicorn.
 # Build context is ./backend (so requirements.txt is reachable).
-FROM python:3.11-slim
+FROM python:3.11-slim AS runtime
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -34,3 +34,15 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=180s --retries=3 \
 # One worker keeps a single copy of the model in memory; threads handle concurrent requests.
 # Long timeout: the first request JIT-compiles librosa's numba kernels.
 CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "1", "--threads", "4", "--timeout", "180", "predict:create_app()"]
+
+# ---------------------------------------------------------------- training notebook (optional)
+# JupyterLab on top of the exact runtime above, for train_on_linuxone.ipynb.
+# Started on demand with deploy/jupyter.sh (compose profile "training"); not part of the web app.
+FROM runtime AS jupyter
+USER root
+RUN pip install jupyterlab==4.2.5 matplotlib==3.9.2
+ENV HOME=/tmp
+WORKDIR /workspace
+EXPOSE 8888
+HEALTHCHECK NONE
+CMD ["python", "-m", "jupyterlab", "--ip=0.0.0.0", "--port=8888", "--no-browser", "--ServerApp.root_dir=/workspace"]
