@@ -992,6 +992,10 @@ button {
   border: 1px solid var(--rule);
 }
 
+.platform__facts dd {
+  white-space: normal; /* machine names are long; show them whole */
+}
+
 .tech {
   list-style: none;
   margin: 0;
