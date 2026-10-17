@@ -25,3 +25,17 @@ export async function analyseRecording(file) {
   }
   return data.prediction;
 }
+
+/** Plain-language explanation by IBM Granite on watsonx.ai, or null when it isn't available. */
+export async function explainResult(prediction, language) {
+  try {
+    const res = await fetch(`${API}/explain`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prediction, language }),
+    });
+    return res.ok ? await res.json() : null;
+  } catch {
+    return null;
+  }
+}

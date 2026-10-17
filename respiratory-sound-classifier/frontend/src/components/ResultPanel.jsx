@@ -1,4 +1,5 @@
 import { CONDITIONS, confidenceBand } from '../lib/config.js';
+import Explanation from './Explanation.jsx';
 
 const STEPS = [
   'Resample to 16 kHz and take the centre 5 seconds',
@@ -63,7 +64,7 @@ function Failed({ message, refused, onRetry, onReset, canRetry }) {
   );
 }
 
-function Report({ result, finishedAt, file, onReset }) {
+function Report({ result, finishedAt, file, onReset, explain }) {
   const ranked = Object.entries(result.all_probabilities).sort((a, b) => b[1] - a[1]);
   const top = result.predicted_class;
   const band = confidenceBand(result.confidence);
@@ -97,6 +98,8 @@ function Report({ result, finishedAt, file, onReset }) {
           </p>
         )}
       </div>
+
+      {explain && <Explanation result={result} />}
 
       <table className="probs">
         <caption className="visually-hidden">Match strength for each class</caption>
@@ -169,7 +172,7 @@ function Report({ result, finishedAt, file, onReset }) {
   );
 }
 
-export default function ResultPanel({ analysis, file, onRetry, onReset }) {
+export default function ResultPanel({ analysis, file, explain, onRetry, onReset }) {
   return (
     <section className="panel panel--result" aria-labelledby="result-title" aria-live="polite">
       <header className="panel__head">
@@ -188,7 +191,7 @@ export default function ResultPanel({ analysis, file, onRetry, onReset }) {
         />
       )}
       {analysis.state === 'done' && (
-        <Report result={analysis.result} finishedAt={analysis.finishedAt} file={file} onReset={onReset} />
+        <Report result={analysis.result} finishedAt={analysis.finishedAt} file={file} onReset={onReset} explain={explain} />
       )}
     </section>
   );
