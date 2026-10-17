@@ -1,12 +1,13 @@
 # Deploying on a Linux server (Docker Compose)
 
-The app runs as three containers:
+The app runs as four containers:
 
 | Service    | Image contents                                    | Port                        |
 |------------|---------------------------------------------------|-----------------------------|
 | `frontend` | React build served by nginx; proxies `/api/*`     | published on `HTTP_PORT` (80) |
 | `backend`  | Express API: uploads, WhatsApp webhook            | 5000 (internal only)        |
 | `ml`       | Flask + PyTorch Geometric model, run by gunicorn  | 5001 (internal only)        |
+| `db2`      | IBM Db2 Community Edition: screening history      | 50000 (internal only)       |
 
 Only nginx is exposed; the browser calls `/api/...` on the same origin, so there is no CORS or
 hard-coded host to configure.
@@ -14,7 +15,8 @@ hard-coded host to configure.
 ## Server requirements
 
 - Linux on **x86_64** or **IBM Z / LinuxONE (s390x)** — Ubuntu 22.04/24.04, Debian 12, RHEL/Rocky/Alma 8/9
-- 2 vCPU, **4 GB RAM** minimum (the ML container is capped at 3 GB), ~6 GB free disk
+- 2 vCPU, **8 GB RAM** recommended (ML container capped at 3 GB, Db2 at 3 GB), ~12 GB free disk
+  (the Db2 image is ~3 GB uncompressed)
 - Inbound TCP 80 open (and 443 if you add HTTPS)
 
 ### IBM Z / LinuxONE (s390x)
@@ -79,6 +81,51 @@ curl http://localhost/api/health  # backend health through nginx
 
 Containers restart automatically after crashes and after a server reboot (`restart: unless-stopped`,
 and Docker is enabled at boot by the setup script).
+
+## Screening history (IBM Db2)
+
+Every screening — web upload and WhatsApp — is written by the API gateway to an
+`SCREENINGS` table in IBM Db2 Community Edition (free; image `icr.io/db2_community/db2`, published for
+x86_64 and s390x). The **History** section of the web app reads it through `GET /api/history`.
+**Only results are stored, never audio**: predicted class, confidence, the five class probabilities,
+the quality-gate reason and signals for refused recordings, recording length, inference time, channel and
+server architecture.
+
+- **Password**: `deploy/deploy.sh` writes a random `DB2_PASSWORD` into `.env` on first run (replacing the
+  `change-me` placeholder). It never leaves the server; don't commit `.env`.
+- **First start takes several minutes** (on LinuxONE plan for 5–10) while the container creates the
+  instance and the `SCREEN` database; later starts take about a minute. Watch it with
+  `docker compose logs -f db2` until it prints `Setup has completed`.
+- **Screening never depends on Db2.** While Db2 is starting, restarting or down, the app keeps screening
+  normally; the gateway logs `IBM Db2 unavailable - screening ... not recorded` and skips the write (it
+  retries the connection every 15 s), and the History section says the database is not reachable.
+- **Memory**: the `db2` container is capped at 3 GB, and `deploy/db2/limit-memory.sh` limits Db2's
+  `INSTANCE_MEMORY` to 2 GB (`DB2_INSTANCE_MEMORY_MB`) — the Db2 image only does this itself under
+  Kubernetes. On an 8 GB server, ML (3 GB) + Db2 (3 GB) fit, but **do not run the Jupyter `training`
+  profile (5 GB) at the same time**: `docker compose stop db2` before `bash deploy/jupyter.sh`, and
+  `docker compose start db2` afterwards. `deploy/jupyter.sh` warns when Db2 is running.
+- **Privileged**: the Db2 image must run privileged (it sets kernel IPC parameters). It is not published
+  on any host port — only the gateway reaches it, on the compose network.
+- **Driver**: the gateway uses IBM's `ibm_db` Node.js driver, which downloads IBM's Db2 CLI driver for the
+  build machine's architecture (x86_64 or s390x) during `docker compose build`; that is why the backend
+  image is Debian-based rather than Alpine. The s390x CLI driver uses z14-and-newer instructions (vector
+  packed decimal), so it runs on any current LinuxONE / IBM Z but **cannot connect under QEMU s390x
+  emulation** on a PC (it stops with "Illegal instruction"). Check it on the server after deploying:
+  `docker compose logs backend | grep "IBM Db2"` should show `IBM Db2: connected to SCREEN on db2 (DB2 v12.1.5.0, s390x)`
+  after the first screening.
+- Data lives in the `db2-data` Docker volume and survives `docker compose down` and redeploys
+  (`docker compose down -v` deletes it).
+
+Query it with the Db2 command line inside the container:
+
+```bash
+docker compose exec db2 su - db2inst1 -c "db2 connect to SCREEN && db2 'SELECT id, created_at, channel, status, predicted_class, DEC(confidence, 5, 3) AS conf, refusal_reason, inference_ms FROM screenings ORDER BY id DESC FETCH FIRST 10 ROWS ONLY'"
+docker compose exec db2 su - db2inst1 -c "db2 connect to SCREEN && db2 'SELECT channel, status, COUNT(*) AS n FROM screenings GROUP BY channel, status'"
+docker compose exec -it db2 su - db2inst1   # interactive: db2 connect to SCREEN, then any SQL; quit with: db2 terminate; exit
+```
+
+`created_at` is stored in UTC. To start the history from scratch:
+`... db2 'DELETE FROM screenings'` (or `docker compose down -v` to drop the whole database).
 
 ## HTTPS (recommended for anything public)
 
@@ -183,6 +230,6 @@ If the new model was trained with different NumPy / scikit-learn versions, updat
 
 ```bash
 cd backend/python_service && pip install -r ../requirements.txt && python predict.py   # :5001
-cd backend && npm install && npm start                                                 # :5000
+cd backend && npm install && npm start                                                 # :5000 (history off unless DB2_PASSWORD is set)
 cd frontend && npm install && npm run dev  # :3000, proxies /api to :5000
 ```

@@ -22,6 +22,11 @@ export HOST_UID="$(id -u)" HOST_GID="$(id -g)"
 port=$(grep -E '^JUPYTER_PORT=' .env | cut -d= -f2 || true)
 port=${port:-8888}
 
+if [[ -n "$(docker compose ps -q --status running db2 2>/dev/null)" ]]; then
+    echo "!!  IBM Db2 is running. JupyterLab (5 GB) + ML (3 GB) + Db2 (3 GB) do not fit in 8 GB of RAM:"
+    echo "    stop it while training with 'docker compose stop db2' and start it again with 'docker compose start db2'."
+fi
+
 echo "==> Building and starting JupyterLab (first build takes a few minutes)"
 docker compose --profile training up -d --build jupyter
 
