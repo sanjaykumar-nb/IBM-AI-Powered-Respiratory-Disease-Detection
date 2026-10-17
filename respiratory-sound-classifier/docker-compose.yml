@@ -80,7 +80,8 @@ services:
     expose:
       - "50000"
     healthcheck:
-      test: ["CMD-SHELL", "su - db2inst1 -c 'db2 connect to $$DBNAME >/dev/null && db2 terminate >/dev/null'"]
+      # Double quotes: $DBNAME must be expanded here, `su -` starts db2inst1's shell without it
+      test: ["CMD-SHELL", "su - db2inst1 -c \"db2 connect to $$DBNAME >/dev/null && db2 terminate >/dev/null\""]
       interval: 30s
       timeout: 30s
       retries: 5
