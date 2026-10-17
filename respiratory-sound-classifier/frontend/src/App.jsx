@@ -51,7 +51,7 @@ export default function App() {
       const result = await analyseRecording(selected);
       if (id === runId.current) setAnalysis({ state: 'done', result, finishedAt: new Date() });
     } catch (e) {
-      if (id === runId.current) setAnalysis({ state: 'error', message: e.message });
+      if (id === runId.current) setAnalysis({ state: 'error', message: e.message, refused: e.refused });
     }
   }, []);
 

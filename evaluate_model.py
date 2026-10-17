@@ -4,7 +4,8 @@
 Runs inference through the web app's own code (respiratory-sound-classifier/backend/python_service/
 predict.py), so the results are exactly what the deployed service would return.
 
-  1. Sanity tests     - probabilities, determinism, silent / short / long audio
+  1. Sanity tests     - probabilities, determinism, short / long / resampled audio, silence and noise
+                       refused, and every dataset recording passes the input quality gate
   2. Evaluation       - accuracy, balanced accuracy, per-class precision/recall/F1
   3. Figures          - confusion matrix, per-class metrics, confidence, latency
   4. Example panels   - waveform, spectrogram, the frame graph the GNN sees, class probabilities
@@ -126,6 +127,17 @@ def sanity_tests(service, sample_file):
         finally:
             os.remove(path)
 
+    def refused(audio, sr, reason):
+        path = write(audio, sr)
+        try:
+            r = service.classify_file(path)
+        except service.RecordingQualityError as e:
+            assert e.reason == reason, f"refused as '{e.reason}', expected '{reason}'"
+            return f"refused ({e.reason}): {e.quality}"
+        finally:
+            os.remove(path)
+        raise AssertionError(f"not refused: classified as {r['predicted_class']} ({r['confidence']:.0%})")
+
     def probs_valid():
         r = service.classify_file(str(sample_file))
         p = np.array(list(r["all_probabilities"].values()))
@@ -142,15 +154,46 @@ def sanity_tests(service, sample_file):
         assert diff == 0, f"repeat run differs by {diff:g}"
         return "identical probabilities on repeat"
 
+    import librosa
+
     rng = np.random.default_rng(0)
+    real, real_sr = librosa.load(str(sample_file), sr=None)  # a real recording at its own sample rate
     check("probabilities are valid", probs_valid)
     check("prediction is deterministic", deterministic)
-    # Synthetic inputs check robustness only: the model still has to pick one of its 5 classes for them
-    check("silent recording handled", lambda: classify_synthetic(np.zeros(4000 * 6), 4000))
-    check("short recording (1 s) is padded", lambda: classify_synthetic(0.1 * rng.standard_normal(4000), 4000))
-    check("long recording (30 s) is centre-cropped", lambda: classify_synthetic(0.1 * rng.standard_normal(44100 * 30), 44100))
-    check("44.1 kHz input is resampled", lambda: classify_synthetic(0.1 * rng.standard_normal(44100 * 5), 44100))
+    # Short / long / resampled variants of a real recording must still be classified...
+    check("short recording (1 s) is padded", lambda: classify_synthetic(real[:real_sr], real_sr))
+    check("long recording (30 s) is centre-cropped",
+          lambda: classify_synthetic(np.tile(real, int(np.ceil(30 * real_sr / len(real))))[:30 * real_sr], real_sr))
+    check("44.1 kHz input is resampled",
+          lambda: classify_synthetic(librosa.resample(real, orig_sr=real_sr, target_sr=44100), 44100))
+    # ...while input that is not a lung recording must be refused instead of getting a confident label
+    check("silent recording is refused", lambda: refused(np.zeros(4000 * 6), 4000, "silent"))
+    check("near-silent recording is refused", lambda: refused(1e-5 * rng.standard_normal(4000 * 6), 4000, "silent"))
+    check("white noise (4 kHz) is refused", lambda: refused(0.1 * rng.standard_normal(4000 * 5), 4000, "noise"))
+    check("white noise (44.1 kHz) is refused", lambda: refused(0.1 * rng.standard_normal(44100 * 5), 44100, "noise"))
+    check("very short recording (0.1 s) is refused", lambda: refused(real[:real_sr // 10], real_sr, "too_short"))
+    check("every dataset recording passes the quality gate", lambda: quality_gate_passes(service))
     return results
+
+
+def quality_gate_passes(service):
+    """All recordings in the dataset (not only the evaluated split) must pass predict.check_quality."""
+    files = dataset_files()
+    worst = {"rms_dbfs": 0.0, "peak_dbfs": 0.0, "spectral_flatness": 0.0, "recording_seconds": 1e9}
+    failed = []
+    for f in files:
+        audio, sr, target_samples, seconds = service.load_window(str(f))
+        q = service.quality_signals(audio, sr, target_samples, seconds)
+        try:
+            service.check_quality(q)
+        except service.RecordingQualityError as e:
+            failed.append(f"{f.relative_to(DATASET).as_posix()} ({e.reason})")
+        worst = {"rms_dbfs": min(worst["rms_dbfs"], q["rms_dbfs"]), "peak_dbfs": min(worst["peak_dbfs"], q["peak_dbfs"]),
+                 "spectral_flatness": max(worst["spectral_flatness"], q["spectral_flatness"]),
+                 "recording_seconds": min(worst["recording_seconds"], q["recording_seconds"])}
+    assert not failed, f"{len(failed)} of {len(files)} refused, e.g. {', '.join(failed[:3])}"
+    return (f"{len(files)} recordings; worst: {worst['recording_seconds']:.2f} s, RMS {worst['rms_dbfs']} dBFS, "
+            f"peak {worst['peak_dbfs']} dBFS, flatness {worst['spectral_flatness']:.3f}")
 
 
 # ------------------------------------------------------------------------------------------ 2. evaluation
@@ -393,7 +436,11 @@ def main():
     # Just classify the given files
     if args.files:
         for f in args.files:
-            r = service.classify_file(str(f))
+            try:
+                r = service.classify_file(str(f))
+            except service.RecordingQualityError as e:
+                print(f"{f.name:32s} → refused: {e}")
+                continue
             true_label = label_for(f)
             print(f"{f.name:32s} → {r['predicted_class']:10s} {r['confidence']:.1%}  ({r['inference_ms']:.0f} ms)")
             fig_example(plt, service, f, r, true_label, out / "examples" / f"{f.stem}.png")
@@ -405,7 +452,7 @@ def main():
     print("\n1. Sanity tests")
     tests = sanity_tests(service, files[0])
     for name, passed, detail in tests:
-        print(f"  [{'PASS' if passed else 'FAIL'}] {name:40s} {detail}")
+        print(f"  [{'PASS' if passed else 'FAIL'}] {name:48s} {detail}")
 
     print(f"\n2. Evaluating on {note}")
     rows = evaluate(service, files)

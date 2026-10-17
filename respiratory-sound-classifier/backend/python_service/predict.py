@@ -190,20 +190,110 @@ def health_check():
         'arch': platform.machine()
     })
 
-def classify_file(path):
-    """Run the full inference pipeline on an audio file and return the result dict."""
-    started = time.perf_counter()
-    target_sr = 16000
-    duration = 5.0
-    target_samples = int(duration * target_sr)
+# --- Input quality gate ---
+# The GNN always picks one of its 5 classes: without this gate, pure silence and white noise came back as
+# "Bronchial" with 99-100% confidence. Recordings that fail a check are refused (HTTP 422) instead.
+#
+# Thresholds come from running quality_signals() over all 1,211 recordings in "Asthma Detection Dataset
+# Version 2" (504 at 4 kHz, 707 at 44.1 kHz), then leaving a margin so that no real recording is refused:
+#
+#   signal (centre 5 s, before peak normalisation)   dataset min / median / max    refused when
+#   recording length                                 0.48 s / 6.0 s / 6.0 s        < 0.25 s
+#   RMS level                                        -40.4 / -16.4 / -2.9 dBFS     < -60 dBFS
+#   peak level                                       -25.2 / -1.6 / +3.1 dBFS      < -45 dBFS
+#   spectral flatness, 50 Hz - 2 kHz (median frame)  0.000 / 0.001 / 0.199         > 0.30
+#
+# For comparison: digital silence has no level at all, white noise at 4-44.1 kHz has flatness 0.40-0.57 and
+# pink noise 0.38. Breath sounds are far from flat because their energy sits in a few low bands.
+# The length limit is loose on purpose: the dataset itself contains recordings under 1 s.
+MIN_RECORDING_SECONDS = 0.25
+MIN_RMS_DBFS = -60.0
+MIN_PEAK_DBFS = -45.0
+MAX_SPECTRAL_FLATNESS = 0.30
 
+
+class RecordingQualityError(ValueError):
+    """The recording is not usable lung-sound audio; `reason` is a short code, `quality` the measured signals."""
+
+    def __init__(self, message, reason, quality):
+        super().__init__(message)
+        self.reason = reason
+        self.quality = quality
+
+
+def _dbfs(value):
+    return round(20 * float(np.log10(max(float(value), 1e-6))), 1)
+
+
+def _spectral_flatness(audio, sr, fmin=50.0, fmax=2000.0):
+    """Median per-frame spectral flatness (geometric / arithmetic mean of power) in the lung-sound band.
+
+    The band stops at 2 kHz because the 4 kHz dataset recordings contain nothing above it, so a full-band
+    measure would depend on the original sample rate. Frames of digital silence are skipped.
+    """
+    if len(audio) == 0:
+        return 0.0
+    power = np.abs(librosa.stft(audio, n_fft=2048, hop_length=512)) ** 2
+    freqs = librosa.fft_frequencies(sr=sr, n_fft=2048)
+    band = power[(freqs >= fmin) & (freqs <= fmax)]
+    energy = band.sum(axis=0)
+    active = energy > energy.max() * 1e-6
+    if not active.any():
+        return 0.0
+    band = np.maximum(band[:, active], 1e-12)
+    flatness = np.exp(np.mean(np.log(band), axis=0)) / np.mean(band, axis=0)
+    return round(float(np.median(flatness)), 4)
+
+
+def quality_signals(audio, sr, target_samples, recording_seconds):
+    """Signals for the quality gate, measured on the analysed window before padding and normalisation."""
+    return {
+        'recording_seconds': round(recording_seconds, 2),
+        'padded_fraction': round(max(0.0, 1 - len(audio) / target_samples), 3),
+        'rms_dbfs': _dbfs(np.sqrt(np.mean(audio ** 2))) if len(audio) else _dbfs(0),
+        'peak_dbfs': _dbfs(np.max(np.abs(audio))) if len(audio) else _dbfs(0),
+        'spectral_flatness': _spectral_flatness(audio, sr),
+    }
+
+
+def check_quality(quality):
+    """Raise RecordingQualityError if the signals show the recording is not usable."""
+    if quality['recording_seconds'] < MIN_RECORDING_SECONDS:
+        raise RecordingQualityError(
+            f"This recording is too short ({quality['recording_seconds']:.1f} s) — record at least "
+            "5 seconds of breathing with the stethoscope on the chest.", 'too_short', quality)
+    if quality['rms_dbfs'] < MIN_RMS_DBFS or quality['peak_dbfs'] < MIN_PEAK_DBFS:
+        raise RecordingQualityError(
+            "This recording is almost silent — record again with the stethoscope on the chest.",
+            'silent', quality)
+    if quality['spectral_flatness'] > MAX_SPECTRAL_FLATNESS:
+        raise RecordingQualityError(
+            "This recording sounds like static or background noise, not breath sounds — check the "
+            "stethoscope connection and record again in a quiet room.", 'noise', quality)
+
+
+def load_window(path, target_sr=16000, duration=5.0):
+    """Load at target_sr and take the centre `duration` seconds (not yet padded or normalised)."""
     audio, sr = librosa.load(path, sr=target_sr)
+    target_samples = int(duration * target_sr)
     recording_seconds = len(audio) / sr
-
     if len(audio) > target_samples:
         start = (len(audio) - target_samples) // 2
         audio = audio[start:start + target_samples]
-    elif len(audio) < target_samples:
+    return audio, sr, target_samples, recording_seconds
+
+
+def classify_file(path):
+    """Run the full inference pipeline on an audio file and return the result dict.
+
+    Raises RecordingQualityError if the recording fails the quality gate.
+    """
+    started = time.perf_counter()
+    audio, sr, target_samples, recording_seconds = load_window(path)
+
+    check_quality(quality_signals(audio, sr, target_samples, recording_seconds))
+
+    if len(audio) < target_samples:
         padding = target_samples - len(audio)
         audio = np.pad(audio, (0, padding), mode='constant')
 
@@ -282,6 +372,9 @@ def predict():
 
         try:
             return jsonify(classify_file(temp_path))
+        except RecordingQualityError as e:
+            print(f"Recording refused ({e.reason}): {e.quality}")
+            return jsonify({'error': str(e), 'reason': e.reason, 'quality': e.quality}), 422
         finally:
             if os.path.exists(temp_path):
                 os.remove(temp_path)

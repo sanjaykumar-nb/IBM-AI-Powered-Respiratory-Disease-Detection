@@ -42,10 +42,12 @@ function Analysing() {
   );
 }
 
-function Failed({ message, onRetry, onReset, canRetry }) {
+function Failed({ message, refused, onRetry, onReset, canRetry }) {
   return (
     <div className="result-empty result-error" role="alert">
-      <p className="result-empty__title">The recording could not be analysed</p>
+      <p className="result-empty__title">
+        {refused ? 'This recording cannot be screened' : 'The recording could not be analysed'}
+      </p>
       <p>{message}</p>
       <div className="actions">
         {canRetry && (
@@ -177,7 +179,13 @@ export default function ResultPanel({ analysis, file, onRetry, onReset }) {
       {analysis.state === 'idle' && <Idle />}
       {analysis.state === 'analysing' && <Analysing />}
       {analysis.state === 'error' && (
-        <Failed message={analysis.message} onRetry={onRetry} onReset={onReset} canRetry={Boolean(file)} />
+        <Failed
+          message={analysis.message}
+          refused={analysis.refused}
+          onRetry={onRetry}
+          onReset={onReset}
+          canRetry={Boolean(file) && !analysis.refused}
+        />
       )}
       {analysis.state === 'done' && (
         <Report result={analysis.result} finishedAt={analysis.finishedAt} file={file} onReset={onReset} />

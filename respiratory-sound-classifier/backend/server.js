@@ -98,8 +98,10 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
                 fs.unlinkSync(req.file.path);
             }
 
-            res.status(500).json({
-                error: 'Failed to process audio file',
+            // 422: the ML service refused the recording (silent, too short, noise) - pass its reason on
+            const refused = pythonError.response?.status === 422;
+            res.status(refused ? 422 : 500).json({
+                error: refused ? pythonError.response.data.error : 'Failed to process audio file',
                 details: pythonError.response?.data || pythonError.message
             });
         }
@@ -191,7 +193,11 @@ app.post('/api/whatsapp', express.urlencoded({ extended: false }), async (req, r
                 
             } catch (predError) {
                 console.error('Prediction error:', predError.message);
-                twiml.message('⚠️ Sorry, I could not analyze that audio file. Please try again.');
+                if (predError.response?.status === 422) {
+                    twiml.message(`⚠️ ${predError.response.data.error}`);
+                } else {
+                    twiml.message('⚠️ Sorry, I could not analyze that audio file. Please try again.');
+                }
             } finally {
                 // Cleanup
                 if (fs.existsSync(filepath)) fs.unlinkSync(filepath);

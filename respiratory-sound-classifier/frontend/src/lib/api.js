@@ -18,7 +18,10 @@ export async function analyseRecording(file) {
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.success) {
     const detail = typeof data.details === 'object' ? data.details?.error : data.details;
-    throw new Error(detail || data.error || `The server returned an error (${res.status}).`);
+    const error = new Error(detail || data.error || `The server returned an error (${res.status}).`);
+    // 422: the recording failed the quality check (silent, too short, noise) - sending it again won't help
+    error.refused = res.status === 422;
+    throw error;
   }
   return data.prediction;
 }
