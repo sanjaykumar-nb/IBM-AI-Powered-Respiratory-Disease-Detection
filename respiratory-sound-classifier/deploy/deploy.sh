@@ -14,7 +14,7 @@ if [[ "$(uname -m)" == "s390x" ]] && ! grep -q '^COMPOSE_FILE=' .env; then
     printf '\nCOMPOSE_FILE=docker-compose.yml:docker-compose.s390x.yml\n' >> .env
 fi
 
-if [[ -d .git ]]; then
+if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "==> Pulling latest code"
     git pull --ff-only || echo "    (git pull skipped/failed - deploying the local copy)"
 fi
