@@ -11,6 +11,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 import pickle
 import json
+import tempfile
 from pathlib import Path
 import warnings
 warnings.filterwarnings('ignore')
@@ -99,7 +100,7 @@ def load_model():
     global model, label_encoder, graph_converter
     
     try:
-        model_folder = Path(r"C:\Users\admin\Desktop\pro\saved_models\respiratory_model_20250904_002134")
+        model_folder = Path(os.environ.get('MODEL_DIR', Path(__file__).resolve().parent / 'model'))
         
         if not model_folder.exists():
             print(f"❌ Model folder not found at: {model_folder}")
@@ -199,13 +200,10 @@ def predict():
         if file.filename == '':
             return jsonify({'error': 'Empty filename'}), 400
         
-        # Save temporarily
-        temp_path = os.path.join('/tmp', file.filename)
-        # Ensure /tmp exists (on Windows usually C:\tmp or similar, but let's use current dir for safety if /tmp is issue)
-        # Better to use tempfile module but sticking to simple path for now, adjusting for windows
-        if os.name == 'nt':
-            temp_path = os.path.join(os.environ.get('TEMP', '.'), file.filename)
-            
+        # Save to a unique temp file (never trust the client-supplied filename as a path)
+        suffix = Path(file.filename).suffix.lower() or '.wav'
+        fd, temp_path = tempfile.mkstemp(suffix=suffix)
+        os.close(fd)
         file.save(temp_path)
         
         try:
@@ -268,13 +266,19 @@ def predict():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
+def create_app():
+    """Entry point for production WSGI servers (e.g. `gunicorn 'predict:create_app()'`)."""
+    if not load_model():
+        raise RuntimeError("Model could not be loaded - check MODEL_DIR")
+    return app
+
 if __name__ == '__main__':
     print("="*60)
     print("🚀 Starting Python ML Service")
     print("="*60)
-    
+
     if load_model():
-        app.run(host='0.0.0.0', port=5001, debug=False)
+        app.run(host='0.0.0.0', port=int(os.environ.get('PORT', 5001)), debug=False)
     else:
         print("❌ Failed to start service - model not loaded")
         sys.exit(1)

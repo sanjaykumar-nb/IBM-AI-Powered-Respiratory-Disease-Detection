@@ -56,11 +56,12 @@ respiratory-sound-classifier/
 ├── 📂 backend/
 │   ├── server.js                          # Express server
 │   ├── package.json
-│   ├── 📂 uploads/                        # Temporary file storage
+│   ├── requirements.txt                   # Python ML dependencies
+│   ├── Dockerfile                         # Express image
 │   └── 📂 python_service/
 │       ├── predict.py                     # Flask ML API
-│       ├── requirements.txt
-│       └── best_respiratory_model.pth     # Trained model
+│       ├── Dockerfile                     # ML image
+│       └── 📂 model/                      # Trained model (model.pth, metadata.json, label_encoder.pkl)
 │
 ├── 📂 frontend/
 │   ├── 📂 public/
@@ -86,6 +87,12 @@ respiratory-sound-classifier/
 
 ---
 
+## 🐳 Production Deployment
+
+To host on a Linux server with Docker Compose, see **[DEPLOY.md](DEPLOY.md)** (`sudo bash deploy/setup-server.sh` then `bash deploy/deploy.sh`).
+
+---
+
 ## 🔧 Installation
 
 ### Prerequisites
@@ -108,13 +115,13 @@ npm install
 cd backend/python_service
 
 # Install dependencies
-pip install -r requirements.txt
+pip install -r ../requirements.txt
 
-# Verify model file exists
-ls best_respiratory_model.pth
+# Verify model files exist
+ls model/
 ```
 
-**Important**: Ensure `best_respiratory_model.pth` is in the `backend/python_service/` directory.
+**Important**: Ensure `model.pth`, `metadata.json` and `label_encoder.pkl` are in `backend/python_service/model/` (or set `MODEL_DIR`).
 
 ### 3️⃣ Frontend Setup
 
@@ -321,7 +328,7 @@ print(f"Best Accuracy: {history['best_accuracy']:.4f}")
 - Check ports 3000, 5000, 5001 are available
 
 **Model not loading**
-- Verify `best_respiratory_model.pth` is in `backend/python_service/`
+- Verify the model files are in `backend/python_service/model/`
 - Check Python dependencies are installed
 
 **File upload fails**

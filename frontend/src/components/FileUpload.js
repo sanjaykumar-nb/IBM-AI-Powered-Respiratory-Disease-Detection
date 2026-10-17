@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import axios from 'axios';
 
-const API_URL = 'http://localhost:5000/api';
+// Same-origin '/api' in production (nginx proxies it); override with REACT_APP_API_URL for local dev
+const API_URL = process.env.REACT_APP_API_URL || '/api';
 
 function FileUpload({ onPrediction, onError, setLoading }) {
   const [dragActive, setDragActive] = useState(false);

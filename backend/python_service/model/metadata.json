@@ -1,0 +1,8 @@
+{
+    "model_config": {
+        "input_dim": 76,
+        "hidden_dim": 128,
+        "num_classes": 5,
+        "dropout": 0.5
+    }    
+}

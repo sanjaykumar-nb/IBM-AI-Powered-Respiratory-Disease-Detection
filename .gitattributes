@@ -1,0 +1,9 @@
+# Keep Linux-executed files LF even when edited/committed from Windows
+*.sh          text eol=lf
+Dockerfile    text eol=lf
+*.conf        text eol=lf
+*.yml         text eol=lf
+.env.example  text eol=lf
+
+*.pth binary
+*.pkl binary

@@ -7,7 +7,9 @@ const fs = require('fs');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
-const PYTHON_API_URL = 'http://localhost:5001';
+const PYTHON_API_URL = process.env.PYTHON_API_URL || 'http://localhost:5001';
+const UPLOAD_DIR = path.join(__dirname, 'uploads');
+fs.mkdirSync(UPLOAD_DIR, { recursive: true });
 
 // Middleware
 app.use(cors());
@@ -16,11 +18,7 @@ app.use(express.json());
 // Configure multer for file upload
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        const uploadDir = path.join(__dirname, 'uploads');
-        if (!fs.existsSync(uploadDir)) {
-            fs.mkdirSync(uploadDir, { recursive: true });
-        }
-        cb(null, uploadDir);
+        cb(null, UPLOAD_DIR);
     },
     filename: (req, file, cb) => {
         const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
@@ -140,7 +138,7 @@ app.post('/api/whatsapp', express.urlencoded({ extended: false }), async (req, r
             // Generate unique filename
             const ext = contentType.split('/')[1] || 'wav'; // Default to wav if unknown, though likely ogg/amr
             const filename = `whatsapp-${Date.now()}.${ext}`;
-            const filepath = path.join(__dirname, 'uploads', filename);
+            const filepath = path.join(UPLOAD_DIR, filename);
             
             // Download the file
             const writer = fs.createWriteStream(filepath);
@@ -203,7 +201,7 @@ app.post('/api/whatsapp', express.urlencoded({ extended: false }), async (req, r
 
 app.listen(PORT, () => {
     console.log(`✅ Backend server running on port ${PORT}`);
-    console.log(`📁 Upload directory: ${path.join(__dirname, 'uploads')}`);
+    console.log(`📁 Upload directory: ${UPLOAD_DIR}`);
     console.log(`🔗 Python ML service expected at: ${PYTHON_API_URL}`);
     console.log(`💬 WhatsApp Webhook ready at: http://localhost:${PORT}/api/whatsapp`);
 });
