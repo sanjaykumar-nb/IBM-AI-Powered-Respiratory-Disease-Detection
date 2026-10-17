@@ -4,6 +4,7 @@ const multer = require('multer');
 const axios = require('axios');
 const path = require('path');
 const fs = require('fs');
+const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -58,6 +59,16 @@ app.get('/api/status', async (req, res) => {
     }
 });
 
+// Screening history from IBM Db2 (results only, never audio)
+app.get('/api/history', async (req, res) => {
+    try {
+        res.json(await db.history(Number(req.query.limit) || 50));
+    } catch (error) {
+        console.warn('History unavailable:', error.message.split('\n')[0]);
+        res.status(503).json({ available: false, reason: 'IBM Db2 is starting or not reachable.' });
+    }
+});
+
 // Upload and predict endpoint
 app.post('/api/upload', upload.single('audio'), async (req, res) => {
     try {
@@ -85,6 +96,7 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
             // Clean up uploaded file
             fs.unlinkSync(req.file.path);
 
+            db.recordScreening({ channel: 'web', status: 'ok', prediction: response.data });
             res.json({
                 success: true,
                 prediction: response.data
@@ -100,6 +112,9 @@ app.post('/api/upload', upload.single('audio'), async (req, res) => {
 
             // 422: the ML service refused the recording (silent, too short, noise) - pass its reason on
             const refused = pythonError.response?.status === 422;
+            db.recordScreening(refused
+                ? { channel: 'web', status: 'refused', refusal: pythonError.response.data }
+                : { channel: 'web', status: 'error' });
             res.status(refused ? 422 : 500).json({
                 error: refused ? pythonError.response.data.error : 'Failed to process audio file',
                 details: pythonError.response?.data || pythonError.message
@@ -181,6 +196,7 @@ app.post('/api/whatsapp', express.urlencoded({ extended: false }), async (req, r
                 });
                 
                 const result = predResponse.data;
+                db.recordScreening({ channel: 'whatsapp', status: 'ok', prediction: result });
                 const prediction = result.predicted_class;
                 const confidence = (result.confidence * 100).toFixed(1);
                 
@@ -193,7 +209,11 @@ app.post('/api/whatsapp', express.urlencoded({ extended: false }), async (req, r
                 
             } catch (predError) {
                 console.error('Prediction error:', predError.message);
-                if (predError.response?.status === 422) {
+                const refused = predError.response?.status === 422;
+                db.recordScreening(refused
+                    ? { channel: 'whatsapp', status: 'refused', refusal: predError.response.data }
+                    : { channel: 'whatsapp', status: 'error' });
+                if (refused) {
                     twiml.message(`⚠️ ${predError.response.data.error}`);
                 } else {
                     twiml.message('⚠️ Sorry, I could not analyze that audio file. Please try again.');
@@ -219,5 +239,6 @@ app.listen(PORT, () => {
     console.log(`✅ Backend server running on port ${PORT}`);
     console.log(`📁 Upload directory: ${UPLOAD_DIR}`);
     console.log(`🔗 Python ML service expected at: ${PYTHON_API_URL}`);
+    console.log(`🗄️  Screening history: ${db.enabled() ? `IBM Db2 at ${process.env.DB2_HOST || 'db2'}` : 'disabled'}`);
     console.log(`💬 WhatsApp Webhook ready at: http://localhost:${PORT}/api/whatsapp`);
 });

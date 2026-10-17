@@ -49,13 +49,16 @@ export default function Method({ arch }) {
           <div>
             <h3>Deployment</h3>
             <p>
-              Three containers — web, API gateway and inference — orchestrated with Docker Compose
+              Four containers — web, API gateway, inference and IBM Db2 for the screening history — orchestrated with Docker Compose
               {arch === 's390x' ? ', currently serving from IBM LinuxONE (s390x).' : arch ? `, currently serving from ${arch}.` : '.'}
             </p>
           </div>
           <div>
             <h3>Privacy</h3>
-            <p>Recordings are processed on this server and deleted as soon as the analysis finishes. Nothing is stored.</p>
+            <p>
+              Recordings are processed on this server and deleted as soon as the analysis finishes. Only the result is
+              kept — class, scores, quality checks and timing — in IBM Db2, never the audio.
+            </p>
           </div>
         </div>
       </div>

@@ -22,6 +22,7 @@ export default function Header({ server }) {
           <a href="#screening">Screening</a>
           <a href="#method">Method</a>
           <a href="#platform">IBM Z</a>
+          <a href="#history">History</a>
         </nav>
         <div className={`status status--${server.state}`} role="status">
           <span className="status__dot" aria-hidden="true" />

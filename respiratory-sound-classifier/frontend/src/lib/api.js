@@ -6,6 +6,13 @@ export async function fetchStatus() {
   return res.json();
 }
 
+export async function fetchHistory(limit = 50) {
+  const res = await fetch(`${API}/history?limit=${limit}`);
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.available) throw new Error(data.reason || 'Screening history is unavailable.');
+  return data;
+}
+
 export async function analyseRecording(file) {
   const body = new FormData();
   body.append('audio', file, file.name);
