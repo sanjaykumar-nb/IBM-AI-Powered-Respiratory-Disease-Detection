@@ -65,8 +65,11 @@ referral decisions, not a diagnosis.
   present; `deploy/ibmz-showcase.sh` measures the CPACF speed-up, on-chip compression and live inference latency.
 - **Data sovereignty and reliability:** patient recordings are processed on the LinuxONE machine and deleted
   after analysis; nothing goes to a public AI cloud. Services restart themselves and come back after reboots,
-  fitting LinuxONE's always-on design. Next: screening history in IBM Db2 (built, being integrated) and NNPA
-  acceleration on IBM z16 / LinuxONE 4.
+  fitting LinuxONE's always-on design.
+- **IBM Db2 on LinuxONE:** every screening — web or WhatsApp, including refused recordings — is recorded in
+  IBM Db2 (Community Edition, s390x image) running beside the app: result, quality checks and timing, never
+  the audio. The History page shows the audit trail, class counts, refusal rate and latency.
+- **Next:** NNPA on-chip AI acceleration on IBM z16 / LinuxONE 4.
 
 ### What value does your solution deliver, and who will benefit from it?
 
