@@ -902,6 +902,136 @@ button {
   color: var(--ink-3);
 }
 
+/* ------------------------------------------------------------------ history (IBM Db2) */
+.history {
+  background: var(--surface);
+  padding: 56px 0 64px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.history__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+}
+
+.history__head .method__title {
+  margin-bottom: 0;
+}
+
+.history__head .badge {
+  margin-top: 0;
+}
+
+.history__lede {
+  max-width: 680px;
+  margin: 14px 0 24px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+.history__stats {
+  margin: 0 0 32px;
+}
+
+.history__sub {
+  color: var(--ink-3);
+}
+
+.history__grid {
+  display: grid;
+  grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+  gap: 40px;
+  margin-bottom: 36px;
+}
+
+.history__h3 {
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.history__table {
+  margin-top: 8px;
+}
+
+.history__table thead th.num {
+  text-align: right;
+}
+
+.history__empty {
+  font-size: 13.5px;
+  color: var(--ink-3);
+  padding: 12px 0;
+}
+
+.log__scroll {
+  overflow-x: auto;
+  margin-top: 8px;
+  border: 1px solid var(--rule);
+  border-radius: var(--radius);
+  max-height: 560px;
+  overflow-y: auto;
+}
+
+.log {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.log th,
+.log td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--rule);
+  text-align: left;
+  white-space: nowrap;
+}
+
+.log thead th {
+  position: sticky;
+  top: 0;
+  background: var(--paper);
+  font: 500 10.5px/1 var(--mono);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding-top: 10px;
+  padding-bottom: 10px;
+}
+
+.log tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.log .num {
+  text-align: right;
+  font-family: var(--mono);
+  font-size: 12.5px;
+}
+
+.log__time {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  color: var(--ink-2);
+}
+
+.log__class {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.log__flag {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font: 500 11px/1.4 var(--mono);
+}
+
+.log__flag--warn { background: var(--warn-tint); color: var(--warn); }
+.log__flag--alert { background: var(--alert-tint); color: var(--alert); }
+
 /* ------------------------------------------------------------------ footer */
 .site-footer {
   padding: 28px 0 40px;
@@ -950,6 +1080,11 @@ button {
   .tech__item:nth-child(3) {
     padding-left: 0;
     border-left: 0;
+  }
+
+  .history__grid {
+    grid-template-columns: 1fr;
+    gap: 28px;
   }
 }
 
@@ -1008,6 +1143,19 @@ button {
   .site-footer__inner {
     flex-direction: column;
   }
+
+  .history__stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .log th,
+  .log td {
+    padding: 8px 6px;
+  }
+
+  .log__opt {
+    display: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1032,6 +1180,7 @@ button {
   .intro,
   .method,
   .platform,
+  .history,
   .site-footer,
   .no-print,
   .player,

@@ -4,6 +4,7 @@ import RecordingPanel from './components/RecordingPanel.jsx';
 import ResultPanel from './components/ResultPanel.jsx';
 import Method from './components/Method.jsx';
 import Platform from './components/Platform.jsx';
+import History from './components/History.jsx';
 import Footer from './components/Footer.jsx';
 import { analyseRecording, fetchStatus } from './lib/api.js';
 import { inspectRecording } from './lib/audio.js';
@@ -14,6 +15,7 @@ export default function App() {
   const [file, setFile] = useState(null);
   const [recording, setRecording] = useState(null); // decoded preview, or { error }
   const [analysis, setAnalysis] = useState({ state: 'idle' });
+  const [screened, setScreened] = useState(0); // finished uploads, so the History section reloads
   const runId = useRef(0);
 
   useEffect(() => {
@@ -54,6 +56,7 @@ export default function App() {
     } catch (e) {
       if (id === runId.current) setAnalysis({ state: 'error', message: e.message, refused: e.refused });
     }
+    setScreened((n) => n + 1);
   }, []);
 
   const reset = () => {
@@ -89,6 +92,7 @@ export default function App() {
       </main>
       <Method arch={server.arch} />
       <Platform server={server} />
+      <History refreshKey={screened} serverArch={server.arch} />
       <Footer server={server} />
     </>
   );
