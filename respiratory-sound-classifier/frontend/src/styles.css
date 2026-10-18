@@ -758,6 +758,119 @@ button {
   color: var(--ink-3);
 }
 
+/* ------------------------------------------------------------------ evidence (explainable AI) */
+.evidence {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule);
+}
+
+.evidence__title {
+  font-size: 15px;
+}
+
+.evidence__intro {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--ink-2);
+}
+
+.evidence__groups {
+  list-style: none;
+  margin: 14px 0 0;
+  padding: 0;
+  display: grid;
+  gap: 10px;
+}
+
+.evidence__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.evidence__name {
+  min-width: 0;
+}
+
+.evidence__effect {
+  flex: none;
+  font: 500 10.5px/1.6 var(--mono);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.evidence__bar {
+  height: 6px;
+  margin-top: 4px;
+  border-radius: 3px;
+  background: var(--sunken);
+  overflow: hidden;
+}
+
+.evidence__bar span {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: var(--ink-3);
+}
+
+.evidence__group--strong .evidence__bar span { background: var(--accent); }
+.evidence__group--moderate .evidence__bar span { background: var(--accent); opacity: 0.6; }
+.evidence__group--against .evidence__bar span { background: var(--alert); opacity: 0.7; }
+.evidence__group--strong .evidence__effect { color: var(--accent); }
+.evidence__group--against .evidence__effect { color: var(--alert); }
+
+.evidence__detail {
+  margin-top: 3px;
+  font: 400 11.5px/1.4 var(--mono);
+  color: var(--ink-3);
+}
+
+.evidence__time {
+  margin-top: 18px;
+}
+
+.timestrip {
+  list-style: none;
+  margin: 8px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(10, minmax(0, 1fr));
+  gap: 3px;
+}
+
+.timestrip__cell {
+  height: 26px;
+  border-radius: 3px;
+  background: var(--accent);
+}
+
+.timestrip__cell--against {
+  background: var(--alert);
+  opacity: 0.35;
+}
+
+.timestrip__cell--pad {
+  background: repeating-linear-gradient(45deg, var(--sunken), var(--sunken) 4px, var(--rule) 4px, var(--rule) 6px);
+}
+
+.timestrip__axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font: 400 10.5px/1 var(--mono);
+  color: var(--ink-3);
+}
+
+.evidence__note {
+  margin-top: 14px;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
 /* ------------------------------------------------------------------ method */
 .method {
   background: var(--surface);
@@ -1205,6 +1318,9 @@ button {
   .bar span,
   .swatch,
   .badge,
+  .evidence__bar,
+  .evidence__bar span,
+  .timestrip__cell,
   .details {
     -webkit-print-color-adjust: exact;
     print-color-adjust: exact;

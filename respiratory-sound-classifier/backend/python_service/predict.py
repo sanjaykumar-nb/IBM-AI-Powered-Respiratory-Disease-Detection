@@ -348,12 +348,11 @@ def load_window(path, target_sr=16000, duration=5.0):
     return audio, sr, target_samples, recording_seconds
 
 
-def classify_file(path):
-    """Run the full inference pipeline on an audio file and return the result dict.
+def analysed_features(path):
+    """Load, quality-check and preprocess a recording; returns (76 x 157 features, recording_seconds).
 
     Raises RecordingQualityError if the recording fails the quality gate.
     """
-    started = time.perf_counter()
     audio, sr, target_samples, recording_seconds = load_window(path)
 
     check_quality(quality_signals(audio, sr, target_samples, recording_seconds))
@@ -365,25 +364,35 @@ def classify_file(path):
     if np.max(np.abs(audio)) > 0:
         audio = audio / np.max(np.abs(audio))
 
-    # Extract features
     features = extract_features(audio, sr)
     if features is None:
         raise ValueError('Feature extraction failed')
+    return features, recording_seconds
 
-    # Convert to graph
-    graph = graph_converter.features_to_graph(features)
-    graph = graph.to(device)
 
-    # Predict
+def _log_probabilities(feature_sets):
+    """Model log-probabilities for one or more 76 x T feature matrices, in a single batched pass."""
+    batch = Batch.from_data_list([graph_converter.features_to_graph(f) for f in feature_sets]).to(device)
     with torch.no_grad():
-        batch = torch.zeros(graph.x.shape[0], dtype=torch.long, device=device)
-        output = model(graph.x, graph.edge_index, batch)
-        probabilities = torch.exp(output[0])
-        predicted_idx = output.argmax(dim=1).item()
-        confidence = probabilities.max().item()
-        predicted_class = label_encoder.inverse_transform([predicted_idx])[0]
+        return model(batch.x, batch.edge_index, batch.batch)
 
-    return {
+
+def classify_file(path, explain=False):
+    """Run the full inference pipeline on an audio file and return the result dict.
+
+    With explain=True the result also has an 'explanation' (see explain_prediction).
+    Raises RecordingQualityError if the recording fails the quality gate.
+    """
+    started = time.perf_counter()
+    features, recording_seconds = analysed_features(path)
+
+    output = _log_probabilities([features])
+    probabilities = torch.exp(output[0])
+    predicted_idx = output.argmax(dim=1).item()
+    confidence = probabilities.max().item()
+    predicted_class = label_encoder.inverse_transform([predicted_idx])[0]
+
+    result = {
         'predicted_class': str(predicted_class),
         'confidence': float(confidence),
         'all_probabilities': {
@@ -394,6 +403,92 @@ def classify_file(path):
         'inference_ms': round((time.perf_counter() - started) * 1000, 1),
         'arch': platform.machine(),
     }
+    if explain:
+        result['explanation'] = explain_prediction(features, predicted_idx, output[0], recording_seconds)
+    return result
+
+
+# --- Explainable AI: occlusion analysis ---
+# "What did the model rely on?" Each kind of acoustic information (rows of the 76-feature matrix), and each
+# half-second of the 5 s window (columns), is in turn replaced by the values of a typical recording - the
+# average over all 1,211 dataset recordings, stored in model/feature_baseline.json - and the model is run
+# again. The bigger the drop in the predicted class, the more that part of the input supported the result;
+# a rise means it argued against it. This measures this model's behaviour, not medical signs.
+# Drops are measured in log-odds so they stay informative when the probability is close to 100%.
+FEATURE_GROUPS = [  # (key, label, rows in extract_features' stacking order)
+    ('mfcc', 'Timbre (MFCC)', range(0, 13)),
+    ('mfcc_delta', 'Change in timbre (ΔMFCC)', range(13, 26)),
+    ('mfcc_delta2', 'Rate of timbre change (Δ²MFCC)', range(26, 39)),
+    ('spectral_shape', 'Spectral shape (centroid, roll-off, bandwidth)', [39, 40, 48]),
+    ('spectral_contrast', 'Spectral contrast (peaks vs. valleys)', range(41, 48)),
+    ('zcr', 'Noisiness (zero-crossing rate)', [49]),
+    ('chroma', 'Tonal content (chroma)', range(50, 62)),
+    ('mel', 'Band energies (mel)', range(62, 75)),
+    ('rms', 'Loudness (RMS)', [75]),
+]
+TIME_SEGMENTS = 10  # 0.5 s each
+_feature_baseline = None
+
+
+def _baseline():
+    global _feature_baseline
+    if _feature_baseline is None:
+        path = Path(os.environ.get('MODEL_DIR', Path(__file__).resolve().parent / 'model')) / 'feature_baseline.json'
+        _feature_baseline = np.asarray(json.loads(path.read_text())['mean'], dtype=np.float32)[:, None]
+    return _feature_baseline
+
+
+def _log_odds(log_probs, idx):
+    """log(p / (1 - p)) of class idx, computed stably from log-probabilities (rows = variants)."""
+    others = torch.cat([log_probs[:, :idx], log_probs[:, idx + 1:]], dim=1)
+    return log_probs[:, idx] - torch.logsumexp(others, dim=1)
+
+
+def explain_prediction(features, predicted_idx, log_probs, recording_seconds):
+    started = time.perf_counter()
+    baseline = _baseline()
+    frames = features.shape[1]
+    seconds_per_frame = 5.0 / frames
+
+    variants = []
+    for _, _, rows in FEATURE_GROUPS:
+        f = features.copy()
+        f[list(rows), :] = baseline[list(rows), :]
+        variants.append(f)
+    bounds = np.linspace(0, frames, TIME_SEGMENTS + 1).round().astype(int).tolist()  # plain ints for JSON
+    for a, b in zip(bounds[:-1], bounds[1:]):
+        f = features.copy()
+        f[:, a:b] = baseline
+        variants.append(f)
+
+    occluded = _log_probabilities(variants)
+    original = float(_log_odds(log_probs[None, :], predicted_idx)[0])
+    drops = (original - _log_odds(occluded, predicted_idx)).tolist()
+    probs = torch.exp(occluded[:, predicted_idx]).tolist()
+
+    groups = [
+        {'key': key, 'label': label, 'log_odds_drop': round(d, 3), 'probability_without': round(p, 4)}
+        for (key, label, _), d, p in zip(FEATURE_GROUPS, drops, probs)
+    ]
+    analysed = min(recording_seconds, 5.0)
+    segments = [
+        {
+            'start': round(a * seconds_per_frame, 2),
+            'end': round(b * seconds_per_frame, 2),
+            'log_odds_drop': round(d, 3),
+            'probability_without': round(p, 4),
+            'padding': bool(a * seconds_per_frame >= analysed),  # beyond the end of a short recording
+        }
+        for a, b, d, p in zip(bounds[:-1], bounds[1:], drops[len(FEATURE_GROUPS):], probs[len(FEATURE_GROUPS):])
+    ]
+    return {
+        'method': 'occlusion',
+        'target': str(label_encoder.classes_[predicted_idx]),
+        'feature_groups': groups,
+        'time_segments': segments,
+        'explain_ms': round((time.perf_counter() - started) * 1000, 1),
+    }
+
 
 def warm_up():
     """Run one prediction on synthetic audio so the first real request is fast.
@@ -411,7 +506,7 @@ def warm_up():
     os.close(fd)
     try:
         sf.write(path, audio, sr)
-        classify_file(path)
+        classify_file(path, explain=True)
     finally:
         os.remove(path)
     print(f"🔥 Warm-up finished in {time.perf_counter() - started:.1f}s")
@@ -436,7 +531,7 @@ def predict():
         file.save(temp_path)
 
         try:
-            return jsonify(classify_file(temp_path))
+            return jsonify(classify_file(temp_path, explain=True))
         except RecordingQualityError as e:
             print(f"Recording refused ({e.reason}): {e.quality}")
             return jsonify({'error': str(e), 'reason': e.reason, 'quality': e.quality}), 422

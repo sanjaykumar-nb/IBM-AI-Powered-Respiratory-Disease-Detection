@@ -4,7 +4,7 @@
 Runs inference through the web app's own code (respiratory-sound-classifier/backend/python_service/
 predict.py), so the results are exactly what the deployed service would return.
 
-  1. Sanity tests     - probabilities, determinism, short / long / resampled audio, silence and noise
+  1. Sanity tests     - probabilities, determinism, explanations, short / long / resampled audio, silence and noise
                        refused, and every dataset recording passes the input quality gate
   2. Evaluation       - accuracy, balanced accuracy, per-class precision/recall/F1
   3. Figures          - confusion matrix, per-class metrics, confidence, latency
@@ -156,10 +156,26 @@ def sanity_tests(service, sample_file):
 
     import librosa
 
+    def explanation_valid():
+        r = service.classify_file(str(sample_file), explain=True)
+        json.dumps(r)  # the service returns it with Flask's jsonify: numpy types would break it
+        e = r["explanation"]
+        assert e["target"] == r["predicted_class"], "explanation is for another class"
+        assert len(e["feature_groups"]) == len(service.FEATURE_GROUPS), "missing feature groups"
+        assert len(e["time_segments"]) == service.TIME_SEGMENTS, "missing time segments"
+        values = [g["log_odds_drop"] for g in e["feature_groups"] + e["time_segments"]]
+        assert all(np.isfinite(values)), "non-finite attribution"
+        again = service.classify_file(str(sample_file), explain=True)["explanation"]["feature_groups"]
+        assert [g["log_odds_drop"] for g in again] == [g["log_odds_drop"] for g in e["feature_groups"]], "not deterministic"
+        assert service.classify_file(str(sample_file))["confidence"] == r["confidence"], "explaining changed the result"
+        top = max(e["feature_groups"], key=lambda g: g["log_odds_drop"])
+        return f"top: {top['label']} (without it {r['predicted_class']} {top['probability_without']:.0%}), {e['explain_ms']:.0f} ms"
+
     rng = np.random.default_rng(0)
     real, real_sr = librosa.load(str(sample_file), sr=None)  # a real recording at its own sample rate
     check("probabilities are valid", probs_valid)
     check("prediction is deterministic", deterministic)
+    check("explanation is valid and deterministic", explanation_valid)
     # Short / long / resampled variants of a real recording must still be classified...
     check("short recording (1 s) is padded", lambda: classify_synthetic(real[:real_sr], real_sr))
     check("long recording (30 s) is centre-cropped",

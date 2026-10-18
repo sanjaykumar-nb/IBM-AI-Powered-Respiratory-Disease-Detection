@@ -200,9 +200,16 @@ app.post('/api/whatsapp', express.urlencoded({ extended: false }), async (req, r
                 const prediction = result.predicted_class;
                 const confidence = (result.confidence * 100).toFixed(1);
                 
+                // Explainable AI: the two kinds of sound information the model relied on most
+                const evidence = (result.explanation?.feature_groups || [])
+                    .filter((g) => g.log_odds_drop >= 0.7) // odds at least halved without it
+                    .sort((x, y) => y.log_odds_drop - x.log_odds_drop)
+                    .slice(0, 2)
+                    .map((g) => g.label);
                 const message = `🔬 *Analysis Result*\n\n` +
                               `Condition: *${prediction}*\n` +
-                              `Confidence: *${confidence}%*\n\n` +
+                              `Confidence: *${confidence}%*\n` +
+                              (evidence.length ? `Based mainly on: ${evidence.join(', ')}\n` : '') + `\n` +
                               `_Disclaimer: This is for research purposes only._`;
                               
                 twiml.message(message);

@@ -1,10 +1,12 @@
 import { CONDITIONS, confidenceBand } from '../lib/config.js';
+import Evidence from './Evidence.jsx';
 
 const STEPS = [
   'Resample to 16 kHz and take the centre 5 seconds',
   'Extract 76 acoustic features for each of 157 frames',
   'Link similar frames into a graph',
   'Classify the graph with the neural network',
+  'Test which sound information the result relied on',
 ];
 
 function pct(p, digits = 1) {
@@ -126,6 +128,8 @@ function Report({ result, finishedAt, file, onReset }) {
           ))}
         </tbody>
       </table>
+
+      <Evidence explanation={result.explanation} confidence={result.confidence} />
 
       <dl className="details">
         <div>
