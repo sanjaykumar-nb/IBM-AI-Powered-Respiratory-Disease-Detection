@@ -1,4 +1,5 @@
 import { APP_NAME, APP_TAGLINE } from '../lib/config.js';
+import ApiBar from './ApiBar.jsx';
 
 const STATUS_TEXT = {
   checking: 'Connecting…',
@@ -30,6 +31,7 @@ export default function Header({ server }) {
           {server.state === 'online' && server.arch && <span className="status__arch">{server.arch}</span>}
         </div>
       </div>
+      <ApiBar />
     </header>
   );
 }
