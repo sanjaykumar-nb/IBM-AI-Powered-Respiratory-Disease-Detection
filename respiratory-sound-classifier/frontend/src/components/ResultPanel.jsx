@@ -1,5 +1,4 @@
 import { CONDITIONS, confidenceBand } from '../lib/config.js';
-import Evidence from './Evidence.jsx';
 
 const STEPS = [
   'Resample to 16 kHz and take the centre 5 seconds',
@@ -128,8 +127,6 @@ function Report({ result, finishedAt, file, onReset }) {
           ))}
         </tbody>
       </table>
-
-      <Evidence explanation={result.explanation} confidence={result.confidence} />
 
       <dl className="details">
         <div>

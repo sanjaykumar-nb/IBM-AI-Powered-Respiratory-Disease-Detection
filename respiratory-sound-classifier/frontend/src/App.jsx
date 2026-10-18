@@ -3,6 +3,7 @@ import Header from './components/Header.jsx';
 import RecordingPanel from './components/RecordingPanel.jsx';
 import ResultPanel from './components/ResultPanel.jsx';
 import Method from './components/Method.jsx';
+import Evidence from './components/Evidence.jsx';
 import Platform from './components/Platform.jsx';
 import History from './components/History.jsx';
 import Footer from './components/Footer.jsx';
@@ -88,6 +89,9 @@ export default function App() {
             onReset={reset}
           />
           <ResultPanel analysis={analysis} recording={recording} file={file} onRetry={() => file && start(file)} onReset={reset} />
+          {analysis.state === 'done' && (
+            <Evidence explanation={analysis.result.explanation} confidence={analysis.result.confidence} />
+          )}
         </div>
       </main>
       <Method arch={server.arch} />

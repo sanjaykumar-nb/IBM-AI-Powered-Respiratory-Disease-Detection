@@ -34,10 +34,11 @@ export default function Evidence({ explanation, confidence }) {
   const peak = [...segments].filter((s) => !s.padding).sort((a, b) => b.log_odds_drop - a.log_odds_drop)[0];
 
   return (
-    <section className="evidence" aria-labelledby="evidence-title">
-      <h3 id="evidence-title" className="evidence__title">
-        Why {target}?
-      </h3>
+    <section className="panel evidence" aria-labelledby="evidence-title">
+      <header className="panel__head">
+        <span className="panel__step">03</span>
+        <h2 id="evidence-title">Why {target}?</h2>
+      </header>
       <p className="evidence__intro">
         Each kind of sound information was hidden in turn, replaced by what a typical recording sounds like, and the
         model was run again. The more {target} lost, the more the model relied on it.

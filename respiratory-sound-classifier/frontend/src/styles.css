@@ -384,7 +384,7 @@ button {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 20px;
-  align-items: start;
+  align-items: stretch; /* recording and result cards share one height, so the row stays even */
   padding-bottom: 72px;
 }
 
@@ -909,28 +909,24 @@ button {
 }
 
 /* ------------------------------------------------------------------ evidence (explainable AI) */
+/* Full-width third panel under recording + result, so the two columns above stay balanced */
 .evidence {
-  margin-top: 22px;
-  padding-top: 18px;
-  border-top: 1px solid var(--rule);
-}
-
-.evidence__title {
-  font-size: 15px;
+  grid-column: 1 / -1;
 }
 
 .evidence__intro {
-  margin-top: 6px;
-  font-size: 13px;
+  max-width: 760px;
+  font-size: 13.5px;
   color: var(--ink-2);
 }
 
 .evidence__groups {
   list-style: none;
-  margin: 14px 0 0;
+  margin: 18px 0 0;
   padding: 0;
   display: grid;
-  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 40px;
 }
 
 .evidence__row {
@@ -980,7 +976,9 @@ button {
 }
 
 .evidence__time {
-  margin-top: 18px;
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--rule);
 }
 
 .timestrip {
@@ -1333,6 +1331,10 @@ button {
   .facts {
     grid-template-columns: 1fr;
     gap: 20px;
+  }
+
+  .evidence__groups {
+    grid-template-columns: 1fr;
   }
 
   .tech {
